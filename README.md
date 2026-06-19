@@ -19,3 +19,9 @@ then to push your branch:
 git push -u origin feature/<your-feature-name>
 ```
 enjoy!
+
+# Notice 
+You need to merge main when main branch changed
+```bash
+git merge main
+```
