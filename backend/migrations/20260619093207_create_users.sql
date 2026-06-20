@@ -19,5 +19,4 @@ CREATE TABLE `users` (
 
 
 -- +goose Down
-SELECT 'down SQL query';
 drop table `users`

@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="DataSourcePerFileMappings">
-    <file url="file://$PROJECT_DIR$/backend/cmd/server/main.go" value="43d140f3-5e5e-4df3-a1b9-c751d663ea28" />
-    <file url="file://$PROJECT_DIR$/backend/internal/database/dao/userDao.go" value="43d140f3-5e5e-4df3-a1b9-c751d663ea28" />
-  </component>
-</project>
