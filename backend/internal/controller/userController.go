@@ -28,6 +28,10 @@ func (u *UserController) SelectAll(ctx *gin.Context) {
 		})
 	}
 
+	if rows == nil {
+		ctx.JSON(http.StatusInternalServerError, []model.User{})
+		return
+	}
 	ctx.JSON(http.StatusOK, rows)
 
 }
