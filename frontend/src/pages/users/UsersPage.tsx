@@ -263,7 +263,6 @@ export function UsersPage() {
             onChange={(e) => updateField('phone', e.target.value)}
             placeholder="联系方式"
             error={phoneError ?? undefined}
-            helper="手机号：11 位数字；座机：区号-号码"
           />
         </div>
         <div className={styles.row}>
