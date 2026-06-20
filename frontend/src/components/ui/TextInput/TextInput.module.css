@@ -58,7 +58,6 @@
   border: none;
   border-radius: var(--radius-0);
   color: var(--cds-text-secondary);
-  font-size: 15px;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
