@@ -10,6 +10,18 @@ import styles from './UsersPage.module.css'
 
 type LoadState = 'loading' | 'error' | 'empty' | 'ready'
 
+/**
+ * Validates a phone number. Accepts:
+ *   - China mobile: 11 digits starting with 1 (e.g. 13800138000)
+ *   - Landline: optional area code (3-4 digits) + dash + 7-8 digits (e.g. 010-12345678)
+ * Empty input is allowed (phone is optional) — callers decide.
+ */
+function isValidPhone(value: string): boolean {
+  if (/^1\d{10}$/.test(value)) return true
+  if (/^\d{3,4}-\d{7,8}$/.test(value)) return true
+  return false
+}
+
 const emptyForm: UserInput = {
   username: '',
   password_hash: '',
@@ -38,6 +50,7 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState<UserInput>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const loadAll = useCallback(async () => {
@@ -96,11 +109,16 @@ export function UsersPage() {
   const openCreate = () => {
     setForm(emptyForm)
     setFormError(null)
+    setPhoneError(null)
     setCreateOpen(true)
   }
 
   const updateField = <K extends keyof UserInput>(key: K, value: UserInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+    if (key === 'phone') {
+      const v = (value as string).trim()
+      setPhoneError(v && !isValidPhone(v) ? '电话格式不正确' : null)
+    }
   }
 
   const submitCreate = async () => {
@@ -110,6 +128,12 @@ export function UsersPage() {
     }
     if (!form.password_hash.trim()) {
       setFormError('密码不能为空')
+      return
+    }
+    const phone = form.phone.trim()
+    if (phone && !isValidPhone(phone)) {
+      setPhoneError('电话格式不正确')
+      setFormError('电话格式不正确，请检查后重试')
       return
     }
     setSubmitting(true)
@@ -193,11 +217,13 @@ export function UsersPage() {
         )}
       </div>
 
-      {/* Create modal */}
+      {/* Create modal — explicit-close only: clicking outside / Esc won't discard input */}
       <Modal
         open={createOpen}
         title="新增用户"
         onClose={() => setCreateOpen(false)}
+        closeOnScrimClick={false}
+        closeOnEscape={false}
         footer={
           <>
             <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={submitting}>
@@ -218,6 +244,7 @@ export function UsersPage() {
         <TextInput
           label="密码 *"
           type="password"
+          reveal
           value={form.password_hash}
           onChange={(e) => updateField('password_hash', e.target.value)}
           placeholder="将作为 password_hash 存储"
@@ -235,6 +262,8 @@ export function UsersPage() {
             value={form.phone}
             onChange={(e) => updateField('phone', e.target.value)}
             placeholder="联系方式"
+            error={phoneError ?? undefined}
+            helper="手机号：11 位数字；座机：区号-号码"
           />
         </div>
         <div className={styles.row}>

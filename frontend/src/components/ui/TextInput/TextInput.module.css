@@ -13,6 +13,12 @@
   letter-spacing: 0.32px;
 }
 
+.fieldWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .input {
   width: 100%;
   background: var(--cds-field);
@@ -33,6 +39,32 @@
 }
 .input:focus {
   border-bottom-color: var(--cds-focus);
+}
+
+/* Reserve room for the inline reveal toggle */
+.hasToggle {
+  padding-right: 44px;
+}
+
+.toggle {
+  position: absolute;
+  right: var(--space-02);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-0);
+  color: var(--cds-text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.toggle:hover {
+  background: var(--cds-layer-01-hover);
+  color: var(--cds-text-primary);
 }
 
 .error {
