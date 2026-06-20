@@ -1,0 +1,105 @@
+/**
+ * Design tokens — IBM Carbon inspired.
+ * Reference: frontend/docs/example/DESIGN.md
+ *
+ * Raw color values are exposed as `--cds-*` semantic tokens, mirroring
+ * Carbon's naming so the whole visual layer is a thin skin over these
+ * variables. Depth comes from background-color layering, not shadows.
+ * Border radius is 0px everywhere except tags (24px) and avatars (50%).
+ */
+:root {
+  /* ---- Raw palette (kept for swatches / rare direct use) ---- */
+  --white: #ffffff;
+  --gray-10: #f4f4f4;
+  --gray-10-hover: #e8e8e8;
+  --gray-20: #e0e0e0;
+  --gray-30: #c6c6c6;
+  --gray-50: #8d8d8d;
+  --gray-60: #6f6f6f;
+  --gray-70: #525252;
+  --gray-80: #393939;
+  --gray-90: #262626;
+  --gray-100: #161616;
+
+  --blue-10: #edf5ff;
+  --blue-60: #0f62fe;
+  --blue-60-hover: #0353e9;
+  --blue-70: #0043ce;
+  --blue-80: #002d9c;
+
+  --red-60: #da1e28;
+  --red-70: #b81921;
+  --red-10: #fff1f1;
+  --green-50: #24a148;
+  --green-10: #defbe6;
+  --yellow-30: #f1c21b;
+
+  /* ---- Semantic tokens (--cds-*) ---- */
+  --cds-background: var(--white);
+  --cds-layer-01: var(--gray-10); /* cards, tiles, alternating sections */
+  --cds-layer-01-hover: var(--gray-10-hover);
+  --cds-layer-02: var(--gray-20); /* elevated panels within layer 01 */
+
+  --cds-text-primary: var(--gray-100);
+  --cds-text-secondary: var(--gray-70);
+  --cds-text-placeholder: var(--gray-60);
+  --cds-text-on-color: var(--white);
+
+  --cds-border-subtle: var(--gray-30);
+  --cds-border-tile: var(--gray-20);
+
+  --cds-link-primary: var(--blue-60);
+  --cds-link-primary-hover: var(--blue-70);
+
+  --cds-button-primary: var(--blue-60);
+  --cds-button-primary-hover: var(--blue-60-hover);
+  --cds-button-primary-active: var(--blue-80);
+  --cds-button-secondary: var(--gray-80);
+  --cds-button-secondary-hover: #4c4c4c;
+  --cds-button-secondary-active: var(--gray-60);
+  --cds-button-danger: var(--red-60);
+  --cds-button-danger-hover: var(--red-70);
+
+  --cds-field: var(--gray-10);
+  --cds-focus: var(--blue-60);
+
+  --cds-support-error: var(--red-60);
+  --cds-support-success: var(--green-50);
+  --cds-support-warning: var(--yellow-30);
+  --cds-support-info: var(--blue-60);
+
+  --cds-inverse: var(--gray-100); /* dark chrome: nav, footer */
+
+  /* ---- Typography ---- */
+  --font-sans: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', Menlo, 'Courier New', monospace;
+
+  /* ---- Spacing (8px Carbon 2x grid) ---- */
+  --space-01: 2px;
+  --space-02: 4px;
+  --space-03: 8px;
+  --space-04: 12px;
+  --space-05: 16px;
+  --space-06: 24px;
+  --space-07: 32px;
+  --space-08: 40px;
+  --space-09: 48px;
+  --space-10: 64px;
+  --space-11: 80px;
+  --space-12: 96px;
+
+  /* ---- Layout ---- */
+  --container-max: 1584px;
+  --content-max: 1200px;
+  --nav-height: 48px;
+
+  /* ---- Radius ---- */
+  --radius-0: 0px;
+  --radius-sm: 2px;
+  --radius-pill: 24px;
+  --radius-circle: 50%;
+
+  /* ---- Elevation (reserved for genuinely floating elements) ---- */
+  --shadow-raised: 0 2px 6px rgba(0, 0, 0, 0.3);
+  --focus-ring: inset 0 0 0 2px var(--cds-focus), inset 0 0 0 3px var(--white);
+}

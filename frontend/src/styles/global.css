@@ -1,0 +1,87 @@
+/**
+ * Global base styles — reset, typography defaults, shared layout helpers.
+ * Typography scale follows DESIGN.md §3. Letter-spacing only at small sizes
+ * (0.16px @14px, 0.32px @12px); never on display text.
+ */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  background: var(--cds-background);
+  color: var(--cds-text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--cds-link-primary);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--cds-link-primary-hover);
+  text-decoration: underline;
+}
+
+button {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cds-focus);
+  outline-offset: 0;
+}
+
+/* ---- Reusable layout primitives ---- */
+.container {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-inline: var(--space-05);
+}
+
+.section {
+  padding-block: var(--space-09);
+}
+.section--alt {
+  background: var(--cds-layer-01);
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gray-60);
+  letter-spacing: 0.32px;
+  margin-bottom: var(--space-02);
+}
+
+.section-title {
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+  margin-bottom: var(--space-07);
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--gray-20);
+}
