@@ -27,7 +27,7 @@ func (u *UserController) SelectAll(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 	}
 
@@ -39,7 +39,7 @@ func (u *UserController) SelectById(ctx *gin.Context) {
 	_id := ctx.Query("id")
 	if _id == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "id is required",
+			"error": "id is required",
 		})
 		return
 	}
@@ -47,20 +47,20 @@ func (u *UserController) SelectById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
 	row, err := u.dao.SelectById(id)
 	if errors.Is(err, sql.ErrNoRows) {
 		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	} else if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -72,7 +72,7 @@ func (u *UserController) SelectByUserName(ctx *gin.Context) {
 	_userName := ctx.Query("user_name")
 	if _userName == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "user_name is required",
+			"error": "user_name is required",
 		})
 		return
 	}
@@ -80,13 +80,13 @@ func (u *UserController) SelectByUserName(ctx *gin.Context) {
 	row, err := u.dao.SelectByUserName(_userName)
 	if errors.Is(err, sql.ErrNoRows) {
 		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	} else if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -99,7 +99,7 @@ func (u *UserController) DeleteById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -108,7 +108,7 @@ func (u *UserController) DeleteById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -124,14 +124,14 @@ func (u *UserController) Insert(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
 	if user.Username == "" {
 		log.Println("username is empty")
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "username is empty",
+			"error": "username is empty",
 		})
 		return
 	}
@@ -139,14 +139,14 @@ func (u *UserController) Insert(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 	}
 	exec, err := u.dao.Insert(user)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -159,7 +159,7 @@ func (u *UserController) UpdatePasswordById(ctx *gin.Context) {
 	_id := ctx.Query("id")
 	if _id == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "id is empty",
+			"error": "id is empty",
 		})
 		return
 	}
@@ -168,7 +168,7 @@ func (u *UserController) UpdatePasswordById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -177,7 +177,7 @@ func (u *UserController) UpdatePasswordById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "user is not exist",
+			"error": "user is not exist",
 		})
 		return
 	}
@@ -185,7 +185,7 @@ func (u *UserController) UpdatePasswordById(ctx *gin.Context) {
 	password := ctx.PostForm("password")
 	if password == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "password is empty",
+			"error": "password is empty",
 		})
 		return
 	}
@@ -194,7 +194,7 @@ func (u *UserController) UpdatePasswordById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -203,7 +203,7 @@ func (u *UserController) UpdatePasswordById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -216,7 +216,7 @@ func (u *UserController) UpdateUserNameById(ctx *gin.Context) {
 	_id := ctx.Query("id")
 	if _id == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "id is empty",
+			"error": "id is empty",
 		})
 		return
 	}
@@ -225,7 +225,7 @@ func (u *UserController) UpdateUserNameById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -234,7 +234,7 @@ func (u *UserController) UpdateUserNameById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "user is not exist",
+			"error": "user is not exist",
 		})
 		return
 	}
@@ -242,7 +242,7 @@ func (u *UserController) UpdateUserNameById(ctx *gin.Context) {
 	userName := ctx.PostForm("user_name")
 	if userName == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "user_name is empty",
+			"error": "user_name is empty",
 		})
 		return
 	}
@@ -253,7 +253,7 @@ func (u *UserController) UpdateUserNameById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -266,7 +266,7 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	_id := ctx.Query("id")
 	if _id == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "id is empty",
+			"error": "id is empty",
 		})
 		return
 	}
@@ -275,7 +275,7 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -284,7 +284,7 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "user is not exist",
+			"error": "user is not exist",
 		})
 		return
 	}
@@ -292,7 +292,7 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	_roleId := ctx.PostForm("role_id")
 	if _roleId == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "role_id is empty",
+			"error": "role_id is empty",
 		})
 		return
 	}
@@ -301,7 +301,7 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -312,7 +312,7 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -326,20 +326,20 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 	username := ctx.PostForm("username")
 	if username == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "username is empty",
+			"error": "username is empty",
 		})
 		return
 	}
 	user, err := u.dao.SelectByUserName(username)
 	if errors.Is(err, sql.ErrNoRows) {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "username is not exist",
+			"error": "username is not exist",
 		})
 		return
 	} else if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
@@ -347,8 +347,8 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 	password := ctx.PostForm("password")
 	if password == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "password is empty",
-			"isTrue":  false,
+			"error":  "password is empty",
+			"isTrue": false,
 		})
 		return
 	}
@@ -356,15 +356,15 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
-			"isTrue":  false,
+			"error":  err.Error(),
+			"isTrue": false,
 		})
 		return
 	}
 	if user.PasswordHash != hash {
 		ctx.JSON(http.StatusUnauthorized, gin.H{
-			"message": "wrong password",
-			"isTrue":  false,
+			"error":  "wrong password",
+			"isTrue": false,
 		})
 		return
 	}
