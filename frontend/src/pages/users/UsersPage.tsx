@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { usersApi } from '@/api/users'
+import { ApiError, toApiError } from '@/api/errors'
 import type { User, UserInput } from '@/types/user'
 import { USER_STATUS } from '@/types/user'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { TextInput } from '@/components/ui/TextInput/TextInput'
 import { Modal } from '@/components/ui/Modal/Modal'
+import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './UsersPage.module.css'
 
 type LoadState = 'loading' | 'error' | 'empty' | 'ready'
@@ -35,33 +37,38 @@ const emptyForm: UserInput = {
  * Users page — exercises the full user API surface:
  *   selectAll (list), selectByUserName (search), deleteById (remove),
  *   insert (create). Requires the Go backend running on :8080.
+ * All failures surface as ApiError (HTTP code + short reason).
  */
 export function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [state, setState] = useState<LoadState>('loading')
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<ApiError | null>(null)
 
-  // search
+  // search — searchError holds non-404 failures; 404 / empty result shows as "未找到"
   const [searchTerm, setSearchTerm] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchResult, setSearchResult] = useState<User | null | undefined>(undefined)
+  const [searchError, setSearchError] = useState<ApiError | null>(null)
+
+  // transient action error (e.g. delete) shown inline below the toolbar
+  const [actionError, setActionError] = useState<ApiError | null>(null)
 
   // create modal
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState<UserInput>(emptyForm)
-  const [formError, setFormError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<ApiError | null>(null)
   const [phoneError, setPhoneError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const loadAll = useCallback(async () => {
     setState('loading')
-    setError(null)
+    setLoadError(null)
     try {
       const data = await usersApi.selectAll()
       setUsers(data)
       setState(data.length === 0 ? 'empty' : 'ready')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败')
+      setLoadError(toApiError(err))
       setState('error')
     }
   }, [])
@@ -72,6 +79,7 @@ export function UsersPage() {
 
   const exitSearch = () => {
     setSearchResult(undefined)
+    setSearchError(null)
     setSearchTerm('')
     void loadAll()
   }
@@ -84,12 +92,19 @@ export function UsersPage() {
     }
     setSearching(true)
     setSearchResult(undefined)
+    setSearchError(null)
     try {
       const found = await usersApi.selectByUserName(term)
       setSearchResult(found)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '搜索失败')
-      setSearchResult(null)
+      const apiErr = toApiError(err)
+      if (apiErr.status === 404) {
+        // Not found is expected UX — show the friendly empty state, not an error.
+        setSearchResult(null)
+      } else {
+        setSearchError(apiErr)
+        setSearchResult(null)
+      }
     } finally {
       setSearching(false)
     }
@@ -97,12 +112,13 @@ export function UsersPage() {
 
   const handleDelete = async (user: User) => {
     if (!window.confirm(`确认删除用户「${user.real_name || user.username}」(id=${user.id})？`)) return
+    setActionError(null)
     try {
       await usersApi.deleteById(user.id)
       if (searchResult?.id === user.id) exitSearch()
       else void loadAll()
     } catch (err) {
-      window.alert(`删除失败：${err instanceof Error ? err.message : '未知错误'}`)
+      setActionError(toApiError(err))
     }
   }
 
@@ -110,6 +126,7 @@ export function UsersPage() {
     setForm(emptyForm)
     setFormError(null)
     setPhoneError(null)
+    setActionError(null)
     setCreateOpen(true)
   }
 
@@ -123,17 +140,17 @@ export function UsersPage() {
 
   const submitCreate = async () => {
     if (!form.username.trim()) {
-      setFormError('用户名不能为空')
+      setFormError(new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '用户名不能为空' }))
       return
     }
     if (!form.password_hash.trim()) {
-      setFormError('密码不能为空')
+      setFormError(new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '密码不能为空' }))
       return
     }
     const phone = form.phone.trim()
     if (phone && !isValidPhone(phone)) {
       setPhoneError('电话格式不正确')
-      setFormError('电话格式不正确，请检查后重试')
+      setFormError(new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '电话格式不正确，请检查后重试' }))
       return
     }
     setSubmitting(true)
@@ -148,13 +165,13 @@ export function UsersPage() {
       setCreateOpen(false)
       exitSearch()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : '创建失败')
+      setFormError(toApiError(err))
     } finally {
       setSubmitting(false)
     }
   }
 
-  const isSearchMode = searchResult !== undefined
+  const isSearchMode = searchResult !== undefined || searchError !== null
 
   return (
     <section className="section">
@@ -196,18 +213,32 @@ export function UsersPage() {
           )}
         </div>
 
+        {/* Transient action error (e.g. delete failure) */}
+        {actionError && (
+          <div className={styles.actionErrorWrap}>
+            <ErrorBanner error={actionError} prefix="删除失败" />
+          </div>
+        )}
+
         {/* Body */}
         {isSearchMode ? (
-          searchResult ? (
+          searchError ? (
+            <ErrorBanner error={searchError} prefix="搜索失败" />
+          ) : searchResult ? (
             <UserTable users={[searchResult]} onDelete={handleDelete} />
           ) : (
             <p className={styles.muted}>未找到用户名为「{searchTerm}」的用户。</p>
           )
         ) : state === 'error' ? (
-          <div className={styles.notice} role="alert">
-            <Tag kind="red">错误</Tag>
-            <span>无法加载用户数据：{error}</span>
-          </div>
+          <ErrorBanner
+            error={loadError ?? toApiError(new Error('加载失败'))}
+            prefix="无法加载用户数据"
+            action={
+              <Button variant="tertiary" onClick={() => void loadAll()}>
+                重试
+              </Button>
+            }
+          />
         ) : state === 'loading' ? (
           <p className={styles.muted}>正在加载用户数据…</p>
         ) : state === 'empty' ? (
@@ -263,6 +294,7 @@ export function UsersPage() {
             onChange={(e) => updateField('phone', e.target.value)}
             placeholder="联系方式"
             error={phoneError ?? undefined}
+            helper="手机号：11 位数字；座机：区号-号码"
           />
         </div>
         <div className={styles.row}>
@@ -283,12 +315,7 @@ export function UsersPage() {
             placeholder="可选"
           />
         </div>
-        {formError && (
-          <div className={styles.formError} role="alert">
-            <Tag kind="red">错误</Tag>
-            <span>{formError}</span>
-          </div>
-        )}
+        {formError && <ErrorBanner error={formError} prefix="创建失败" />}
       </Modal>
     </section>
   )

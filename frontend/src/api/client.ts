@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ApiError, fromAxiosError } from './errors'
 
 /**
  * Shared axios instance. Base URL is `/api` so requests hit the Vite dev proxy
@@ -12,14 +13,14 @@ export const apiClient = axios.create({
   timeout: 15000,
 })
 
+// Every failed request is normalized into an `ApiError` carrying the HTTP
+// status, a stable code, a short reason, and the backend `{ message }` detail.
+// Callers can then branch on `err.status` / `err.code` and show code + reason.
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Backend returns `{ message: string }` on 500. Normalize into a message string.
-    const message =
-      (error.response?.data as { message?: string } | undefined)?.message ??
-      error.message ??
-      '请求失败'
-    return Promise.reject(new Error(message))
+    return Promise.reject(fromAxiosError(error))
   },
 )
+
+export { ApiError }
