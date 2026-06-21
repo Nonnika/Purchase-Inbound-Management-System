@@ -321,6 +321,55 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	})
 }
 
+func (u *UserController) VerifyPassword(ctx *gin.Context) {
+
+	username := ctx.PostForm("username")
+	if username == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "username is empty",
+		})
+		return
+	}
+	user, err := u.dao.SelectByUserName(username)
+	if errors.Is(err, sql.ErrNoRows) {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "username is not exist",
+		})
+		return
+	} else if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	password := ctx.PostForm("password")
+	if password == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "password is empty",
+		})
+		return
+	}
+	hash, err := encode.EncodePasswd(password)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+	if user.PasswordHash != hash {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"message": "wrong password",
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{
+		"user": user,
+	})
+}
+
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
 	r.GET("/users/selectAll", u.SelectAll)
 	r.GET("/users/selectById", u.SelectById)
