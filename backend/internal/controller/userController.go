@@ -117,6 +117,7 @@ func (u *UserController) DeleteById(ctx *gin.Context) {
 	})
 }
 
+// Insert 注意 PasswordHash 应当传入 Password
 func (u *UserController) Insert(ctx *gin.Context) {
 	var user model.User
 	err := ctx.ShouldBind(&user)
@@ -133,6 +134,13 @@ func (u *UserController) Insert(ctx *gin.Context) {
 			"message": "username is empty",
 		})
 		return
+	}
+	user.PasswordHash, err = encode.EncodePasswd(user.PasswordHash)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
 	}
 	exec, err := u.dao.Insert(user)
 	if err != nil {
@@ -204,6 +212,115 @@ func (u *UserController) UpdatePasswordById(ctx *gin.Context) {
 	})
 }
 
+func (u *UserController) UpdateUserNameById(ctx *gin.Context) {
+	_id := ctx.Query("id")
+	if _id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "id is empty",
+		})
+		return
+	}
+
+	id, err := strconv.Atoi(_id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	user, err := u.dao.SelectById(id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "user is not exist",
+		})
+		return
+	}
+
+	userName := ctx.PostForm("user_name")
+	if userName == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "user_name is empty",
+		})
+		return
+	}
+
+	user.Username = userName
+
+	cnt, err := u.dao.Update(user)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{
+		"affected": cnt,
+	})
+}
+
+func (u *UserController) UpdateRoleById(ctx *gin.Context) {
+	_id := ctx.Query("id")
+	if _id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "id is empty",
+		})
+		return
+	}
+
+	id, err := strconv.Atoi(_id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	user, err := u.dao.SelectById(id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "user is not exist",
+		})
+		return
+	}
+
+	_roleId := ctx.PostForm("role_id")
+	if _roleId == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "role_id is empty",
+		})
+		return
+	}
+
+	roleId, err := strconv.ParseInt(_roleId, 10, 64)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	user.RoleId = roleId
+
+	cnt, err := u.dao.Update(user)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{
+		"affected": cnt,
+	})
+}
+
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
 	r.GET("/users/selectAll", u.SelectAll)
 	r.GET("/users/selectById", u.SelectById)
@@ -211,4 +328,6 @@ func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
 	r.GET("/users/deleteById", u.DeleteById)
 	r.POST("/users/insert", u.Insert)
 	r.POST("/users/UpdatePasswordById", u.UpdatePasswordById)
+	r.POST("/users/UpdateUserNameById", u.UpdateUserNameById)
+	r.POST("/users/UpdateRoleById", u.UpdateRoleById)
 }
