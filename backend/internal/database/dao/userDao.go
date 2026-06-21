@@ -10,7 +10,7 @@ type UserDao struct {
 }
 
 func (u *UserDao) SelectAll() ([]model.User, error) {
-	var userRows []model.User
+	var userRows = make([]model.User, 0)
 	err := u.DB.Select(&userRows, "select * from users")
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (u *UserDao) Insert(user model.User) (int64, error) {
 }
 
 // Update 不稳定
-func (u *UserDao) Update(user model.User) (int64, error) {
+func (u *UserDao) Update(user *model.User) (int64, error) {
 	query := `
 	UPDATE users
 	SET username=:username,real_name=:real_name,phone=:phone,role_id=:role_id,department_id=:department_id,password_hash=:password_hash
