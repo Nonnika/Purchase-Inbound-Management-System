@@ -59,7 +59,7 @@ func (u *UserDao) Insert(user model.User) (int64, error) {
 }
 
 // Update 不稳定
-func (u *UserDao) Update(user model.User) (int64, error) {
+func (u *UserDao) Update(user *model.User) (int64, error) {
 	query := `
 	UPDATE users
 	SET username=:username,real_name=:real_name,phone=:phone,role_id=:role_id,department_id=:department_id,password_hash=:password_hash
