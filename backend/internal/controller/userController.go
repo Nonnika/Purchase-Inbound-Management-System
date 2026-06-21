@@ -348,6 +348,7 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 	if password == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"message": "password is empty",
+			"isTrue":  false,
 		})
 		return
 	}
@@ -356,26 +357,32 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"message": err.Error(),
+			"isTrue":  false,
 		})
 		return
 	}
 	if user.PasswordHash != hash {
 		ctx.JSON(http.StatusUnauthorized, gin.H{
 			"message": "wrong password",
+			"isTrue":  false,
 		})
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{
-		"user": user,
+		"user":   user,
+		"isTrue": true,
 	})
 }
 
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
+	r.POST("/users/insert", u.Insert)
+	r.POST("/users/verify", u.VerifyPassword)
+}
+func (u *UserController) RegisterAuthRouter(r *gin.RouterGroup) {
 	r.GET("/users/selectAll", u.SelectAll)
 	r.GET("/users/selectById", u.SelectById)
 	r.GET("/users/selectByUserName", u.SelectByUserName)
 	r.GET("/users/deleteById", u.DeleteById)
-	r.POST("/users/insert", u.Insert)
 	r.POST("/users/UpdatePasswordById", u.UpdatePasswordById)
 	r.POST("/users/UpdateUserNameById", u.UpdateUserNameById)
 	r.POST("/users/UpdateRoleById", u.UpdateRoleById)
