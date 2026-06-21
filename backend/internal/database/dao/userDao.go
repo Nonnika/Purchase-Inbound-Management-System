@@ -10,7 +10,7 @@ type UserDao struct {
 }
 
 func (u *UserDao) SelectAll() ([]model.User, error) {
-	var userRows []model.User
+	var userRows = make([]model.User, 0)
 	err := u.DB.Select(&userRows, "select * from users")
 	if err != nil {
 		return nil, err
