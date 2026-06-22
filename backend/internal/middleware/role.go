@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Role requires the authenticated user's role_id to be one of allowedRoleIds.
+// Role 权限控制
 func Role(allowedRoleIds ...int64) gin.HandlerFunc {
 	allowed := make(map[int64]struct{}, len(allowedRoleIds))
 	for _, roleId := range allowedRoleIds {
