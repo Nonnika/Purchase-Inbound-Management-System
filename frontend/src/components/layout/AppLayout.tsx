@@ -43,7 +43,7 @@ export function AppLayout() {
 
       <footer className={styles.footer}>
         <div className="container">
-          Purchase Inbound Management System · 数据库课程项目 · 前端 Vite + React + TypeScript
+          Purchase Inbound Management System 
         </div>
       </footer>
     </div>
