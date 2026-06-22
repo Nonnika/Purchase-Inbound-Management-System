@@ -1,0 +1,88 @@
+.base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-05);
+  height: 48px;
+  padding: 14px 63px 14px 16px; /* asymmetric: room for trailing icon */
+  border: 1px solid transparent;
+  border-radius: var(--radius-0);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.16px;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.base:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.label {
+  display: inline-block;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Primary — Blue 60 */
+.primary {
+  background: var(--cds-button-primary);
+  color: var(--cds-text-on-color);
+}
+.primary:hover:not(:disabled) {
+  background: var(--cds-button-primary-hover);
+}
+.primary:active:not(:disabled) {
+  background: var(--cds-button-primary-active);
+}
+
+/* Secondary — Gray 80 */
+.secondary {
+  background: var(--cds-button-secondary);
+  color: var(--cds-text-on-color);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--cds-button-secondary-hover);
+}
+.secondary:active:not(:disabled) {
+  background: var(--cds-button-secondary-active);
+}
+
+/* Tertiary — ghost blue with border */
+.tertiary {
+  background: transparent;
+  color: var(--blue-60);
+  border-color: var(--blue-60);
+}
+.tertiary:hover:not(:disabled) {
+  background: var(--blue-60-hover);
+  color: var(--white);
+  border-color: var(--blue-60-hover);
+}
+
+/* Ghost — transparent, blue text, no border */
+.ghost {
+  background: transparent;
+  color: var(--blue-60);
+  border-color: transparent;
+  padding: 14px 16px;
+}
+.ghost:hover:not(:disabled) {
+  background: var(--cds-layer-01-hover);
+}
+
+/* Danger — Red 60 */
+.danger {
+  background: var(--cds-button-danger);
+  color: var(--cds-text-on-color);
+}
+.danger:hover:not(:disabled) {
+  background: var(--cds-button-danger-hover);
+}

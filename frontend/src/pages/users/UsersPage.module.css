@@ -1,0 +1,132 @@
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-05);
+  margin-bottom: var(--space-06);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-03);
+  flex-wrap: wrap;
+}
+
+/* Search bar — bottom-border input inline with buttons */
+.searchBar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-03);
+  margin-bottom: var(--space-06);
+  flex-wrap: wrap;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+  background: var(--cds-field);
+  color: var(--cds-text-primary);
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0 var(--space-05);
+  height: 48px;
+  border-radius: var(--radius-0);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  letter-spacing: 0.16px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.searchInput::placeholder {
+  color: var(--cds-text-placeholder);
+}
+.searchInput:focus {
+  border-bottom-color: var(--cds-focus);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-04);
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+}
+
+.formError {
+  display: flex;
+  align-items: center;
+  gap: var(--space-04);
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  margin-top: var(--space-02);
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+/* Two-column field rows inside the create modal */
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-05);
+}
+@media (max-width: 480px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Table */
+.tableWrap {
+  overflow-x: auto;
+  background: var(--cds-layer-01);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  letter-spacing: 0.16px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-04) var(--space-05);
+  border-bottom: 1px solid var(--cds-border-tile);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-02);
+}
+
+.table tbody tr {
+  transition: background-color 0.15s ease;
+}
+.table tbody tr:hover {
+  background: var(--cds-layer-01-hover);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.16px;
+}
+
+.actionCol {
+  text-align: right;
+}
