@@ -8,6 +8,7 @@ import (
 
 // Role 权限控制
 func Role(allowedRoleIds ...int64) gin.HandlerFunc {
+	// 使用 map 实现快速查找
 	allowed := make(map[int64]struct{}, len(allowedRoleIds))
 	for _, roleId := range allowedRoleIds {
 		allowed[roleId] = struct{}{}

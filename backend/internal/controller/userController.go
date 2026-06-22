@@ -22,12 +22,12 @@ type UserController struct {
 }
 
 type registerUserRequest struct {
-	Username     string `json:"username" form:"username"`
-	Password     string `json:"password" form:"password"`
-	RealName     string `json:"real_name" form:"real_name"`
-	Phone        string `json:"phone" form:"phone"`
-	RoleId       int64  `json:"role_id" form:"role_id"`
-	DepartmentId int64  `json:"department_id" form:"department_id"`
+	Username     string  `json:"username" form:"username"`
+	Password     string  `json:"password" form:"password"`
+	RealName     *string `json:"real_name" form:"real_name"`
+	Phone        *string `json:"phone" form:"phone"`
+	RoleId       int64   `json:"role_id" form:"role_id"`
+	DepartmentId int64   `json:"department_id" form:"department_id"`
 }
 
 func NewUserController(dao *dao.UserDao, jwtMgr *jwt.JManager) *UserController {
@@ -165,8 +165,8 @@ func (u *UserController) Register(ctx *gin.Context) {
 	user := model.User{
 		Username:     req.Username,
 		PasswordHash: passwordHash,
-		RealName:     req.RealName,
-		Phone:        req.Phone,
+		RealName:     normalizeUserOptionalString(req.RealName),
+		Phone:        normalizeUserOptionalString(req.Phone),
 		RoleId:       req.RoleId,
 		DepartmentId: req.DepartmentId,
 	}
@@ -349,6 +349,36 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	})
 }
 
+func (u *UserController) UpdateRealNameById(ctx *gin.Context) {
+	user, ok := u.userByQueryId(ctx)
+	if !ok {
+		return
+	}
+
+	var req registerUserRequest
+	if !bindUserRequest(ctx, &req) {
+		return
+	}
+
+	user.RealName = normalizeUserOptionalString(req.RealName)
+	u.update(ctx, user)
+}
+
+func (u *UserController) UpdatePhoneById(ctx *gin.Context) {
+	user, ok := u.userByQueryId(ctx)
+	if !ok {
+		return
+	}
+
+	var req registerUserRequest
+	if !bindUserRequest(ctx, &req) {
+		return
+	}
+
+	user.Phone = normalizeUserOptionalString(req.Phone)
+	u.update(ctx, user)
+}
+
 func (u *UserController) VerifyPassword(ctx *gin.Context) {
 
 	username := ctx.PostForm("username")
@@ -405,12 +435,75 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 
 }
 
+func bindUserRequest(ctx *gin.Context, req *registerUserRequest) bool {
+	if err := ctx.ShouldBind(req); err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return false
+	}
+
+	return true
+}
+
+func normalizeUserOptionalString(value *string) *string {
+	if value == nil || *value == "" {
+		return nil
+	}
+
+	return value
+}
+
+func (u *UserController) userByQueryId(ctx *gin.Context) (*model.User, bool) {
+	_id := ctx.Query("id")
+	if _id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "id is empty",
+		})
+		return nil, false
+	}
+
+	id, err := strconv.Atoi(_id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return nil, false
+	}
+
+	user, err := u.dao.SelectById(id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "user is not exist",
+		})
+		return nil, false
+	}
+
+	return user, true
+}
+
+func (u *UserController) update(ctx *gin.Context, user *model.User) {
+	cnt, err := u.dao.Update(user)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{
+		"affected": cnt,
+	})
+}
+
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
 	r.POST("/users/verify", u.VerifyPassword)
 }
 func (u *UserController) RegisterAuthRouter(r *gin.RouterGroup) {
 	admin := middleware.Role(model.RoleAdmin)
-
 	r.POST("/users/register", admin, u.Register)
 	r.GET("/users/selectAll", admin, u.SelectAll)
 	r.GET("/users/selectById", admin, u.SelectById)
@@ -419,4 +512,6 @@ func (u *UserController) RegisterAuthRouter(r *gin.RouterGroup) {
 	r.POST("/users/UpdatePasswordById", admin, u.UpdatePasswordById)
 	r.POST("/users/UpdateUserNameById", admin, u.UpdateUserNameById)
 	r.POST("/users/UpdateRoleById", admin, u.UpdateRoleById)
+	r.POST("/users/UpdateRealNameById", admin, u.UpdateRealNameById)
+	r.POST("/users/UpdatePhoneById", admin, u.UpdatePhoneById)
 }

@@ -19,9 +19,9 @@ type DepartmentController struct {
 }
 
 type departmentRequest struct {
-	Name        string `json:"name" form:"name"`
-	Description string `json:"description" form:"description"`
-	Parent      *int64 `json:"parent" form:"parent"`
+	Name        string  `json:"name" form:"name"`
+	Description *string `json:"description" form:"description"`
+	Parent      *int64  `json:"parent" form:"parent"`
 }
 
 func NewDepartmentController(dao *dao.DepartmentDao) *DepartmentController {
@@ -140,14 +140,14 @@ func (d *DepartmentController) Insert(ctx *gin.Context) {
 	}
 
 	parent := normalizeDepartmentParent(req.Parent)
-	if req.Name == "" || req.Description == "" {
+	if req.Name == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid field",
 		})
 		return
 	}
 
-	department := model.Department{Name: req.Name, Description: req.Description, Parent: parent}
+	department := model.Department{Name: req.Name, Description: normalizeDepartmentDescription(req.Description), Parent: parent}
 	insert, err := d.dao.Insert(&department)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -194,14 +194,7 @@ func (d *DepartmentController) UpdateDescriptionById(ctx *gin.Context) {
 		return
 	}
 
-	if req.Description == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "description is empty",
-		})
-		return
-	}
-
-	department.Description = req.Description
+	department.Description = normalizeDepartmentDescription(req.Description)
 	d.update(ctx, department)
 }
 
@@ -238,6 +231,14 @@ func normalizeDepartmentParent(parent *int64) *int64 {
 	}
 
 	return parent
+}
+
+func normalizeDepartmentDescription(description *string) *string {
+	if description == nil || *description == "" {
+		return nil
+	}
+
+	return description
 }
 
 func (d *DepartmentController) departmentByQueryId(ctx *gin.Context) (*model.Department, bool) {
