@@ -499,6 +499,70 @@ func (u *UserController) update(ctx *gin.Context, user *model.User) {
 	})
 }
 
+func (u *UserController) VerifyPassword(ctx *gin.Context) {
+
+	username := ctx.PostForm("username")
+	if username == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "username is empty",
+		})
+		return
+	}
+	user, err := u.dao.SelectByUserName(username)
+	if errors.Is(err, sql.ErrNoRows) {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "username is not exist",
+		})
+		return
+	} else if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	password := ctx.PostForm("password")
+	if password == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error":  "password is empty",
+			"isTrue": false,
+		})
+		return
+	}
+	hash, err := encode.EncodePasswd(password)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error":  err.Error(),
+			"isTrue": false,
+		})
+		return
+	}
+	if !encode.CompareHashAndPassword(hash, password) {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"error":  "wrong password",
+			"isTrue": false,
+		})
+		return
+	}
+
+	token, err := u.jwtMgr.GenerateToken(user.Id, user.Username, user.RoleId)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate jwt token",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"user":   user,
+		"isTrue": true,
+		"token":  token,
+	})
+
+}
+
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
 	r.POST("/users/verify", u.VerifyPassword)
 }
