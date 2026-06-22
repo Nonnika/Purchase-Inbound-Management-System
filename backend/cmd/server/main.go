@@ -51,16 +51,6 @@ func main() {
 
 	departmentController := controller.NewDepartmentController(&dao.DepartmentDao{DB: client.DB})
 	departmentController.RegisterRouter(api)
-	departmentController.RegisterAuthRouter(auth)
-
-	roleController := controller.NewRoleController(&dao.RoleDao{DB: client.DB})
-	roleController.RegisterAuthRouter(auth)
-
-	orderController := controller.NewOrderController(&dao.OrderDao{DB: client.DB})
-	orderController.RegisterAuthRouter(auth)
-
-	itemController := controller.NewItemController(&dao.ItemDao{DB: client.DB})
-	itemController.RegisterAuthRouter(auth)
 
 	log.Fatal(r.Run(":8080"))
 }
