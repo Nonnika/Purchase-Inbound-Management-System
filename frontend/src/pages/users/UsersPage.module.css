@@ -52,21 +52,9 @@
   border-bottom-color: var(--cds-focus);
 }
 
-.notice {
-  display: flex;
-  align-items: center;
-  gap: var(--space-04);
-  font-size: 14px;
-  color: var(--cds-text-secondary);
-}
-
-.formError {
-  display: flex;
-  align-items: center;
-  gap: var(--space-04);
-  font-size: 14px;
-  color: var(--cds-text-secondary);
-  margin-top: var(--space-02);
+/* Transient action error (e.g. delete failure) shown below the toolbar */
+.actionErrorWrap {
+  margin-bottom: var(--space-06);
 }
 
 .muted {
