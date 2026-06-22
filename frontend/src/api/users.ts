@@ -3,13 +3,20 @@ import type { AffectedResult, User, UserInput } from '@/types/user'
 
 /**
  * User API — wraps the endpoints exposed by the Go/Gin backend
- * (see backend/internal/controller/userController.go RegisterRouter):
- *   GET  /api/users/selectAll
- *   GET  /api/users/selectById?id=<int>
- *   GET  /api/users/selectByUserName?user_name=<string>   (note: user_name, not username)
- *   GET  /api/users/deleteById?id=<int>                    -> { affected }
- *   POST /api/users/insert                                 -> { affected }  (body: UserInput JSON)
- *   POST /api/users/UpdatePasswordById?id=<int>            -> { affected }  (form field: password)
+ * (see backend/internal/controller/userController.go RegisterAuthRouter).
+ * All routes below require a valid admin JWT (attached by the client interceptor):
+ *   GET    /api/users/selectAll
+ *   GET    /api/users/selectById?id=<int>
+ *   GET    /api/users/selectByUserName?user_name=<string>   (note: user_name, not username)
+ *   DELETE /api/users/deleteById?id=<int>                    -> { affected }
+ *   POST   /api/users/register                               -> { affected }  (JSON: UserInput)
+ *   POST   /api/users/UpdatePasswordById?id=<int>            -> { affected }  (form field: password)
+ *   POST   /api/users/UpdateUserNameById?id=<int>            -> { affected }  (form field: user_name)
+ *   POST   /api/users/UpdateRoleById?id=<int>                -> { affected }  (form field: role_id)
+ *   POST   /api/users/UpdateRealNameById?id=<int>            -> { affected }  (JSON/ form: real_name)
+ *   POST   /api/users/UpdatePhoneById?id=<int>               -> { affected }  (JSON/ form: phone)
+ *
+ * Login is handled separately in src/api/auth.ts (POST /users/verify, public).
  *
  * All methods reject with an `ApiError` (see src/api/errors.ts) on failure,
  * carrying the HTTP status, a stable code, a short reason, and the backend detail.
@@ -27,36 +34,36 @@ export const usersApi = {
 
   /**
    * Look up a single user by username. The backend reads the `user_name` query
-   * param. Returns null when no matching user is found.
-   *
-   * NOTE: the current DAO ignores the not-found error and returns a zero-value
-   * user (id=0) with HTTP 200, so we detect "not found" via an empty id. If the
-   * DAO is later fixed to return 404, that surfaces as an ApiError(NOT_FOUND)
-   * which callers handle separately.
+   * param and returns 404 (ApiError NOT_FOUND) when no user matches.
    */
-  async selectByUserName(userName: string): Promise<User | null> {
-    const res = await apiClient.get<User>('/users/selectByUserName', {
-      params: { user_name: userName },
-    })
-    return res.data && res.data.id ? res.data : null
-  },
-
-  deleteById(id: number): Promise<AffectedResult> {
+  selectByUserName(userName: string): Promise<User> {
     return apiClient
-      .get<AffectedResult>('/users/deleteById', { params: { id } })
+      .get<User>('/users/selectByUserName', { params: { user_name: userName } })
       .then((res) => res.data)
   },
 
-  insert(payload: UserInput): Promise<AffectedResult> {
+  /** DELETE /users/deleteById?id=  (method changed from GET to DELETE). */
+  deleteById(id: number): Promise<AffectedResult> {
     return apiClient
-      .post<AffectedResult>('/users/insert', payload)
+      .delete<AffectedResult>('/users/deleteById', { params: { id } })
+      .then((res) => res.data)
+  },
+
+  /**
+   * Register a new user. The backend `Register` handler reads JSON
+   * {username, password, real_name, phone, role_id, department_id} and
+   * **hashes `password` server-side** (bcrypt) before storing — so `UserInput`
+   * carries the plaintext `password`, not a hash.
+   */
+  register(payload: UserInput): Promise<AffectedResult> {
+    return apiClient
+      .post<AffectedResult>('/users/register', payload)
       .then((res) => res.data)
   },
 
   /**
    * Update a user's password. The backend reads `id` from the query string and
-   * `password` from multipart form data (ctx.PostForm), then bcrypt-hashes it
-   * server-side — unlike insert, which stores password_hash verbatim.
+   * `password` from form data, then bcrypt-hashes it server-side.
    */
   updatePasswordById(id: number, password: string): Promise<AffectedResult> {
     const form = new URLSearchParams()

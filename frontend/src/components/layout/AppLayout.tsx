@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { getCurrentUser, logout } from '@/api/auth'
 import styles from './AppLayout.module.css'
 
 const navItems = [
@@ -11,8 +12,17 @@ const navItems = [
 /**
  * Application shell: dark Carbon masthead (Gray 100, 48px) + content outlet + footer.
  * Active link uses white text with a 2px bottom-border indicator (DESIGN.md §4 Navigation).
+ * The right side shows the logged-in user and a logout action.
  */
 export function AppLayout() {
+  const navigate = useNavigate()
+  const user = getCurrentUser()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className={styles.shell}>
       <header className={styles.nav}>
@@ -34,6 +44,12 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
+          <div className={styles.session}>
+            {user && <span className={styles.user}>{user.username}</span>}
+            <button type="button" className={styles.logout} onClick={handleLogout}>
+              退出登录
+            </button>
+          </div>
         </div>
       </header>
 
@@ -43,7 +59,7 @@ export function AppLayout() {
 
       <footer className={styles.footer}>
         <div className="container">
-          Purchase Inbound Management System 
+          Purchase Inbound Management System
         </div>
       </footer>
     </div>
