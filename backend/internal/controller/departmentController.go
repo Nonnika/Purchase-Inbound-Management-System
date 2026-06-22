@@ -289,16 +289,20 @@ func (d *DepartmentController) update(ctx *gin.Context, department *model.Depart
 	})
 }
 
+// RegisterRouter 为以后预留
 func (d *DepartmentController) RegisterRouter(r *gin.RouterGroup) {
-	r.POST("/departments/register", d.Insert)
+
 }
 
 func (d *DepartmentController) RegisterAuthRouter(r *gin.RouterGroup) {
+	admin := middleware.Role(model.RoleAdmin)
+
+	r.POST("/departments/register", admin, d.Insert)
 	r.GET("/departments/selectAll", d.SelectAll)
 	r.GET("/departments/selectById", d.SelectById)
 	r.GET("/departments/selectByName", d.SelectByName)
-	r.DELETE("/departments/deleteById", middleware.Role(1), d.DeleteById)
-	r.POST("/departments/UpdateNameById", d.UpdateNameById)
-	r.POST("/departments/UpdateDescriptionById", d.UpdateDescriptionById)
-	r.POST("/departments/UpdateParentById", d.UpdateParentById)
+	r.DELETE("/departments/deleteById", admin, d.DeleteById)
+	r.POST("/departments/UpdateNameById", admin, d.UpdateNameById)
+	r.POST("/departments/UpdateDescriptionById", admin, d.UpdateDescriptionById)
+	r.POST("/departments/UpdateParentById", admin, d.UpdateParentById)
 }

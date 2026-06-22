@@ -406,15 +406,17 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 }
 
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
-	r.POST("/users/register", u.Register)
 	r.POST("/users/verify", u.VerifyPassword)
 }
 func (u *UserController) RegisterAuthRouter(r *gin.RouterGroup) {
-	r.GET("/users/selectAll", u.SelectAll)
-	r.GET("/users/selectById", u.SelectById)
-	r.GET("/users/selectByUserName", u.SelectByUserName)
-	r.DELETE("/users/deleteById", middleware.Role(1), u.DeleteById)
-	r.POST("/users/UpdatePasswordById", u.UpdatePasswordById)
-	r.POST("/users/UpdateUserNameById", u.UpdateUserNameById)
-	r.POST("/users/UpdateRoleById", u.UpdateRoleById)
+	admin := middleware.Role(model.RoleAdmin)
+
+	r.POST("/users/register", admin, u.Register)
+	r.GET("/users/selectAll", admin, u.SelectAll)
+	r.GET("/users/selectById", admin, u.SelectById)
+	r.GET("/users/selectByUserName", admin, u.SelectByUserName)
+	r.DELETE("/users/deleteById", admin, u.DeleteById)
+	r.POST("/users/UpdatePasswordById", admin, u.UpdatePasswordById)
+	r.POST("/users/UpdateUserNameById", admin, u.UpdateUserNameById)
+	r.POST("/users/UpdateRoleById", admin, u.UpdateRoleById)
 }
