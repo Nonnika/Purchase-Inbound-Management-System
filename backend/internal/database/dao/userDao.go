@@ -30,8 +30,8 @@ func (u *UserDao) SelectById(id int) (*model.User, error) {
 
 func (u *UserDao) SelectByUserName(username string) (*model.User, error) {
 	var userRow model.User
-	u.DB.Get(&userRow, "select * from users where username = ?", username)
-	return &userRow, nil
+	err := u.DB.Get(&userRow, "select * from users where username = ?", username)
+	return &userRow, err
 }
 
 func (u *UserDao) DeleteUser(id int) (int64, error) {
