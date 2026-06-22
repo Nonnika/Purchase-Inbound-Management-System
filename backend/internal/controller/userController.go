@@ -11,15 +11,17 @@ import (
 	"github.com/nonnika/pims/internal/database/dao"
 	"github.com/nonnika/pims/internal/database/model"
 	"github.com/nonnika/pims/internal/encode"
+	"github.com/nonnika/pims/internal/jwt"
 )
 
 // UserController 用于处理 Users 表相关的请求
 type UserController struct {
-	dao *dao.UserDao
+	dao    *dao.UserDao
+	jwtMgr *jwt.JManager
 }
 
-func NewUserController(dao *dao.UserDao) *UserController {
-	return &UserController{dao: dao}
+func NewUserController(dao *dao.UserDao, jwtMgr *jwt.JManager) *UserController {
+	return &UserController{dao: dao, jwtMgr: jwtMgr}
 }
 
 func (u *UserController) SelectAll(ctx *gin.Context) {
@@ -361,17 +363,28 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		})
 		return
 	}
-	if user.PasswordHash != hash {
+	if !encode.CompareHashAndPassword(hash, password) {
 		ctx.JSON(http.StatusUnauthorized, gin.H{
 			"error":  "wrong password",
 			"isTrue": false,
 		})
 		return
 	}
+
+	token, err := u.jwtMgr.GenerateToken(user.Id, user.Username, user.RoleId)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate jwt token",
+		})
+		return
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"user":   user,
 		"isTrue": true,
+		"token":  token,
 	})
+
 }
 
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {

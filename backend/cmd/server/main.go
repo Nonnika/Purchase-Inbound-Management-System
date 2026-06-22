@@ -44,9 +44,12 @@ func main() {
 	auth := api.Group("")
 	auth.Use(middleware.Auth(jwtMgr))
 
-	userController := controller.NewUserController(&dao.UserDao{DB: client.DB})
+	userController := controller.NewUserController(&dao.UserDao{DB: client.DB}, jwtMgr)
 	userController.RegisterRouter(api)
 	userController.RegisterAuthRouter(auth)
+
+	departmentController := controller.NewDepartmentController(&dao.DepartmentDao{DB: client.DB})
+	departmentController.RegisterRouter(api)
 
 	log.Fatal(r.Run(":8080"))
 }
