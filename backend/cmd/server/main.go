@@ -50,6 +50,7 @@ func main() {
 
 	departmentController := controller.NewDepartmentController(&dao.DepartmentDao{DB: client.DB})
 	departmentController.RegisterRouter(api)
+	departmentController.RegisterAuthRouter(auth)
 
 	log.Fatal(r.Run(":8080"))
 }

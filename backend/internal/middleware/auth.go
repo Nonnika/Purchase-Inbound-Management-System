@@ -33,6 +33,8 @@ func Auth(jwtMgr *jwt.JManager) gin.HandlerFunc {
 			ctx.JSON(http.StatusUnauthorized, gin.H{
 				"error": err.Error(),
 			})
+			ctx.Abort()
+			return
 		}
 		ctx.Set("user_id", claims.UserId)
 		ctx.Set("roleId", claims.RoleID)

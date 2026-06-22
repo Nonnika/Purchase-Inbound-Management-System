@@ -12,12 +12,22 @@ import (
 	"github.com/nonnika/pims/internal/database/model"
 	"github.com/nonnika/pims/internal/encode"
 	"github.com/nonnika/pims/internal/jwt"
+	"github.com/nonnika/pims/internal/middleware"
 )
 
 // UserController 用于处理 Users 表相关的请求
 type UserController struct {
 	dao    *dao.UserDao
 	jwtMgr *jwt.JManager
+}
+
+type registerUserRequest struct {
+	Username     string `json:"username" form:"username"`
+	Password     string `json:"password" form:"password"`
+	RealName     string `json:"real_name" form:"real_name"`
+	Phone        string `json:"phone" form:"phone"`
+	RoleId       int64  `json:"role_id" form:"role_id"`
+	DepartmentId int64  `json:"department_id" form:"department_id"`
 }
 
 func NewUserController(dao *dao.UserDao, jwtMgr *jwt.JManager) *UserController {
@@ -119,10 +129,9 @@ func (u *UserController) DeleteById(ctx *gin.Context) {
 	})
 }
 
-// Insert 注意 PasswordHash 应当传入 Password
-func (u *UserController) Insert(ctx *gin.Context) {
-	var user model.User
-	err := ctx.ShouldBind(&user)
+func (u *UserController) Register(ctx *gin.Context) {
+	var req registerUserRequest
+	err := ctx.ShouldBind(&req)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -130,19 +139,36 @@ func (u *UserController) Insert(ctx *gin.Context) {
 		})
 		return
 	}
-	if user.Username == "" {
+	if req.Username == "" {
 		log.Println("username is empty")
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"error": "username is empty",
 		})
 		return
 	}
-	user.PasswordHash, err = encode.EncodePasswd(user.PasswordHash)
+	if req.Password == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "password is empty",
+		})
+		return
+	}
+
+	passwordHash, err := encode.EncodePasswd(req.Password)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
+		return
+	}
+
+	user := model.User{
+		Username:     req.Username,
+		PasswordHash: passwordHash,
+		RealName:     req.RealName,
+		Phone:        req.Phone,
+		RoleId:       req.RoleId,
+		DepartmentId: req.DepartmentId,
 	}
 	exec, err := u.dao.Insert(user)
 	if err != nil {
@@ -354,16 +380,8 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		})
 		return
 	}
-	hash, err := encode.EncodePasswd(password)
-	if err != nil {
-		log.Println(err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"error":  err.Error(),
-			"isTrue": false,
-		})
-		return
-	}
-	if !encode.CompareHashAndPassword(hash, password) {
+
+	if !encode.CompareHashAndPassword(user.PasswordHash, password) {
 		ctx.JSON(http.StatusUnauthorized, gin.H{
 			"error":  "wrong password",
 			"isTrue": false,
@@ -388,14 +406,14 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 }
 
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
-	r.POST("/users/insert", u.Insert)
+	r.POST("/users/register", u.Register)
 	r.POST("/users/verify", u.VerifyPassword)
 }
 func (u *UserController) RegisterAuthRouter(r *gin.RouterGroup) {
 	r.GET("/users/selectAll", u.SelectAll)
 	r.GET("/users/selectById", u.SelectById)
 	r.GET("/users/selectByUserName", u.SelectByUserName)
-	r.GET("/users/deleteById", u.DeleteById)
+	r.DELETE("/users/deleteById", middleware.Role(1), u.DeleteById)
 	r.POST("/users/UpdatePasswordById", u.UpdatePasswordById)
 	r.POST("/users/UpdateUserNameById", u.UpdateUserNameById)
 	r.POST("/users/UpdateRoleById", u.UpdateRoleById)
