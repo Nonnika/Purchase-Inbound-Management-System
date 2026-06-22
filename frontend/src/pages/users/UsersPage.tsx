@@ -26,7 +26,7 @@ function isValidPhone(value: string): boolean {
 
 const emptyForm: UserInput = {
   username: '',
-  password_hash: '',
+  password: '',
   real_name: '',
   phone: '',
   role_id: 0,
@@ -143,7 +143,7 @@ export function UsersPage() {
       setFormError(new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '用户名不能为空' }))
       return
     }
-    if (!form.password_hash.trim()) {
+    if (!form.password.trim()) {
       setFormError(new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '密码不能为空' }))
       return
     }
@@ -156,7 +156,7 @@ export function UsersPage() {
     setSubmitting(true)
     setFormError(null)
     try {
-      await usersApi.insert({
+      await usersApi.register({
         ...form,
         username: form.username.trim(),
         role_id: Number(form.role_id) || 0,
@@ -276,10 +276,10 @@ export function UsersPage() {
           label="密码 *"
           type="password"
           reveal
-          value={form.password_hash}
-          onChange={(e) => updateField('password_hash', e.target.value)}
-          placeholder="将作为 password_hash 存储"
-          helper="注意：后端直接存储该值，未在服务端做哈希处理。"
+          value={form.password}
+          onChange={(e) => updateField('password', e.target.value)}
+          placeholder="登录密码"
+          helper="后端会使用 bcrypt 对密码进行哈希后存储。"
         />
         <div className={styles.row}>
           <TextInput

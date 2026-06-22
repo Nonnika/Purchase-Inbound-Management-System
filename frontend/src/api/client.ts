@@ -1,9 +1,16 @@
 import axios from 'axios'
 import { ApiError, fromAxiosError } from './errors'
+import { clearSession, getToken } from './auth'
 
 /**
  * Shared axios instance. Base URL is `/api` so requests hit the Vite dev proxy
  * (-> backend on :8080) in dev, and are served same-origin in production.
+ *
+ * - Request interceptor attaches `Authorization: Bearer <token>` when a session
+ *   exists (backend auth middleware requires it on all `/users/*` routes except
+ *   `/users/verify`).
+ * - Response interceptor normalizes failures into `ApiError` (HTTP status +
+ *   code + reason). On 401 it clears the stale session and bounces to /login.
  */
 export const apiClient = axios.create({
   baseURL: '/api',
@@ -13,13 +20,30 @@ export const apiClient = axios.create({
   timeout: 15000,
 })
 
-// Every failed request is normalized into an `ApiError` carrying the HTTP
-// status, a stable code, a short reason, and the backend `{ message }` detail.
-// Callers can then branch on `err.status` / `err.code` and show code + reason.
+apiClient.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token) {
+    config.headers = config.headers ?? {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    return Promise.reject(fromAxiosError(error))
+    const apiError = fromAxiosError(error)
+    // Expired / invalid token: drop the session and force re-login.
+    // Skip the redirect for the login call itself so the login page can show
+    // its own error (the verify endpoint returns 400/401 for bad credentials).
+    const url = (error?.config?.url as string | undefined) ?? ''
+    if (apiError.status === 401 && !url.includes('/users/verify')) {
+      clearSession()
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.assign('/login')
+      }
+    }
+    return Promise.reject(apiError)
   },
 )
 

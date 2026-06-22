@@ -2,13 +2,15 @@
  * Status-code-aware error handling for the API layer.
  *
  * The Go/Gin backend (backend/internal/controller/userController.go) returns a
- * uniform `{ message: string }` body on failure with these status codes:
+ * uniform `{ error: string }` body on failure with these status codes:
  *   200 — success
  *   400 — bad request: missing/invalid input
  *         (SelectById id required; SelectByUserName user_name required;
- *          Insert bind fail / username empty; UpdatePasswordById id/user/password empty)
- *   404 — not found (SelectById / SelectByUserName on sql.ErrNoRows — note the DAO
- *         currently swallows that error, so 404 may not fire in practice)
+ *          Register bind fail / username empty / password empty;
+ *          UpdatePasswordById / UpdateUserNameById / UpdateRoleById etc. empty fields)
+ *   401 — unauthorized: missing/invalid/expired JWT (auth middleware)
+ *   403 — forbidden: authenticated but role not allowed (e.g. non-admin hitting /users/*)
+ *   404 — not found (SelectById / SelectByUserName on sql.ErrNoRows)
  *   500 — server error: DB/parse failures
  *
  * This module turns any failure (HTTP error, network drop, timeout) into an
@@ -82,23 +84,24 @@ function classify(status: number | null, detail: string): { code: ApiErrorCode; 
 }
 
 /**
- * Build an ApiError from an axios error. Pulls the backend `{ message }` body
+ * Build an ApiError from an axios error. Pulls the backend `{ error }` body
  * when present; otherwise falls back to the axios error message.
  */
 export function fromAxiosError(error: unknown): ApiError {
   // axios error shape: { response?: { status, data }, request?, message, code? }
   const ax = error as {
-    response?: { status?: number; data?: { message?: string } | string }
+    response?: { status?: number; data?: { error?: string; message?: string } | string }
     request?: unknown
     message?: string
     code?: string
   }
 
   const status = ax.response?.status ?? null
+  // Backend now returns `{ error: string }`. Accept `message` too for safety.
   const dataMessage =
     typeof ax.response?.data === 'string'
       ? ax.response.data
-      : ax.response?.data?.message
+      : ax.response?.data?.error ?? ax.response?.data?.message
   const detail = dataMessage ?? ax.message ?? '请求失败'
 
   // axios sets code 'ECONNABORTED' for timeouts.
