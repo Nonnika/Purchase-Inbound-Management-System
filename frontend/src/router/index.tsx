@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { HomePage } from '@/pages/home/HomePage'
 import { UsersPage } from '@/pages/users/UsersPage'
+import { RolesPage } from '@/pages/roles/RolesPage'
 import { LoginPage } from '@/pages/login/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { isLoggedIn } from '@/api/auth'
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'users', element: <UsersPage /> },
+      { path: 'roles', element: <RolesPage /> },
       // Placeholder routes — pages to be built out as the backend grows.
       { path: 'purchasing', element: <HomePage /> },
       { path: 'inbound', element: <HomePage /> },
