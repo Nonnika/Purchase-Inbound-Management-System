@@ -13,23 +13,23 @@ import (
 	"github.com/nonnika/pims/internal/middleware"
 )
 
-// DepartmentController 部门相关参数处理
-type DepartmentController struct {
-	dao *dao.DepartmentDao
+// RoleController 用于处理 Roles 表相关的请求
+type RoleController struct {
+	dao *dao.RoleDao
 }
 
-type departmentRequest struct {
+type roleRequest struct {
 	Name        string `json:"name" form:"name"`
+	Code        string `json:"code" form:"code"`
 	Description string `json:"description" form:"description"`
-	Parent      *int64 `json:"parent" form:"parent"`
 }
 
-func NewDepartmentController(dao *dao.DepartmentDao) *DepartmentController {
-	return &DepartmentController{dao: dao}
+func NewRoleController(dao *dao.RoleDao) *RoleController {
+	return &RoleController{dao: dao}
 }
 
-func (d *DepartmentController) SelectAll(ctx *gin.Context) {
-	rows, err := d.dao.SelectAll()
+func (r *RoleController) SelectAll(ctx *gin.Context) {
+	rows, err := r.dao.SelectAll()
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -41,7 +41,7 @@ func (d *DepartmentController) SelectAll(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, rows)
 }
 
-func (d *DepartmentController) SelectById(ctx *gin.Context) {
+func (r *RoleController) SelectById(ctx *gin.Context) {
 	_id := ctx.Query("id")
 	if _id == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -59,7 +59,7 @@ func (d *DepartmentController) SelectById(ctx *gin.Context) {
 		return
 	}
 
-	row, err := d.dao.SelectById(id)
+	row, err := r.dao.SelectById(id)
 	if errors.Is(err, sql.ErrNoRows) {
 		ctx.JSON(http.StatusNotFound, gin.H{
 			"error": err.Error(),
@@ -76,7 +76,7 @@ func (d *DepartmentController) SelectById(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, row)
 }
 
-func (d *DepartmentController) SelectByName(ctx *gin.Context) {
+func (r *RoleController) SelectByName(ctx *gin.Context) {
 	name := ctx.Query("name")
 	if name == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -85,7 +85,7 @@ func (d *DepartmentController) SelectByName(ctx *gin.Context) {
 		return
 	}
 
-	row, err := d.dao.SelectByName(name)
+	row, err := r.dao.SelectByName(name)
 	if errors.Is(err, sql.ErrNoRows) {
 		ctx.JSON(http.StatusNotFound, gin.H{
 			"error": err.Error(),
@@ -102,7 +102,33 @@ func (d *DepartmentController) SelectByName(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, row)
 }
 
-func (d *DepartmentController) DeleteById(ctx *gin.Context) {
+func (r *RoleController) SelectByCode(ctx *gin.Context) {
+	code := ctx.Query("code")
+	if code == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "code is required",
+		})
+		return
+	}
+
+	row, err := r.dao.SelectByCode(code)
+	if errors.Is(err, sql.ErrNoRows) {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"error": err.Error(),
+		})
+		return
+	} else if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, row)
+}
+
+func (r *RoleController) DeleteById(ctx *gin.Context) {
 	_id := ctx.Query("id")
 	if _id == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -120,7 +146,7 @@ func (d *DepartmentController) DeleteById(ctx *gin.Context) {
 		return
 	}
 
-	affect, err := d.dao.DeleteDepartment(id)
+	affect, err := r.dao.DeleteRole(id)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -128,28 +154,29 @@ func (d *DepartmentController) DeleteById(ctx *gin.Context) {
 		})
 		return
 	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"affected": affect,
 	})
 }
 
-func (d *DepartmentController) Insert(ctx *gin.Context) {
-	var req departmentRequest
-	if !bindDepartmentRequest(ctx, &req) {
+func (r *RoleController) Insert(ctx *gin.Context) {
+	var req roleRequest
+	if !bindRoleRequest(ctx, &req) {
 		return
 	}
 
-	parent := normalizeDepartmentParent(req.Parent)
-	if req.Name == "" || req.Description == "" {
+	if req.Name == "" || req.Code == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid field",
 		})
 		return
 	}
 
-	department := model.Department{Name: req.Name, Description: req.Description, Parent: parent}
-	insert, err := d.dao.Insert(&department)
+	role := model.Role{Name: req.Name, Code: req.Code, Description: req.Description}
+	insert, err := r.dao.Insert(&role)
 	if err != nil {
+		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
@@ -161,14 +188,14 @@ func (d *DepartmentController) Insert(ctx *gin.Context) {
 	})
 }
 
-func (d *DepartmentController) UpdateNameById(ctx *gin.Context) {
-	department, ok := d.departmentByQueryId(ctx)
+func (r *RoleController) UpdateNameById(ctx *gin.Context) {
+	role, ok := r.roleByQueryId(ctx)
 	if !ok {
 		return
 	}
 
-	var req departmentRequest
-	if !bindDepartmentRequest(ctx, &req) {
+	var req roleRequest
+	if !bindRoleRequest(ctx, &req) {
 		return
 	}
 
@@ -179,48 +206,48 @@ func (d *DepartmentController) UpdateNameById(ctx *gin.Context) {
 		return
 	}
 
-	department.Name = req.Name
-	d.update(ctx, department)
+	role.Name = req.Name
+	r.update(ctx, role)
 }
 
-func (d *DepartmentController) UpdateDescriptionById(ctx *gin.Context) {
-	department, ok := d.departmentByQueryId(ctx)
+func (r *RoleController) UpdateCodeById(ctx *gin.Context) {
+	role, ok := r.roleByQueryId(ctx)
 	if !ok {
 		return
 	}
 
-	var req departmentRequest
-	if !bindDepartmentRequest(ctx, &req) {
+	var req roleRequest
+	if !bindRoleRequest(ctx, &req) {
 		return
 	}
 
-	if req.Description == "" {
+	if req.Code == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "description is empty",
+			"error": "code is empty",
 		})
 		return
 	}
 
-	department.Description = req.Description
-	d.update(ctx, department)
+	role.Code = req.Code
+	r.update(ctx, role)
 }
 
-func (d *DepartmentController) UpdateParentById(ctx *gin.Context) {
-	department, ok := d.departmentByQueryId(ctx)
+func (r *RoleController) UpdateDescriptionById(ctx *gin.Context) {
+	role, ok := r.roleByQueryId(ctx)
 	if !ok {
 		return
 	}
 
-	var req departmentRequest
-	if !bindDepartmentRequest(ctx, &req) {
+	var req roleRequest
+	if !bindRoleRequest(ctx, &req) {
 		return
 	}
 
-	department.Parent = normalizeDepartmentParent(req.Parent)
-	d.update(ctx, department)
+	role.Description = req.Description
+	r.update(ctx, role)
 }
 
-func bindDepartmentRequest(ctx *gin.Context, req *departmentRequest) bool {
+func bindRoleRequest(ctx *gin.Context, req *roleRequest) bool {
 	if err := ctx.ShouldBind(req); err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -232,15 +259,7 @@ func bindDepartmentRequest(ctx *gin.Context, req *departmentRequest) bool {
 	return true
 }
 
-func normalizeDepartmentParent(parent *int64) *int64 {
-	if parent == nil || *parent == 0 {
-		return nil
-	}
-
-	return parent
-}
-
-func (d *DepartmentController) departmentByQueryId(ctx *gin.Context) (*model.Department, bool) {
+func (r *RoleController) roleByQueryId(ctx *gin.Context) (*model.Role, bool) {
 	_id := ctx.Query("id")
 	if _id == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -258,10 +277,10 @@ func (d *DepartmentController) departmentByQueryId(ctx *gin.Context) (*model.Dep
 		return nil, false
 	}
 
-	department, err := d.dao.SelectById(id)
+	role, err := r.dao.SelectById(id)
 	if errors.Is(err, sql.ErrNoRows) {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "department is not exist",
+			"error": "role is not exist",
 		})
 		return nil, false
 	} else if err != nil {
@@ -272,11 +291,11 @@ func (d *DepartmentController) departmentByQueryId(ctx *gin.Context) (*model.Dep
 		return nil, false
 	}
 
-	return department, true
+	return role, true
 }
 
-func (d *DepartmentController) update(ctx *gin.Context, department *model.Department) {
-	cnt, err := d.dao.Update(department)
+func (r *RoleController) update(ctx *gin.Context, role *model.Role) {
+	cnt, err := r.dao.Update(role)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -284,21 +303,20 @@ func (d *DepartmentController) update(ctx *gin.Context, department *model.Depart
 		})
 		return
 	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"affected": cnt,
 	})
 }
 
-func (d *DepartmentController) RegisterRouter(r *gin.RouterGroup) {
-	r.POST("/departments/register", d.Insert)
-}
-
-func (d *DepartmentController) RegisterAuthRouter(r *gin.RouterGroup) {
-	r.GET("/departments/selectAll", d.SelectAll)
-	r.GET("/departments/selectById", d.SelectById)
-	r.GET("/departments/selectByName", d.SelectByName)
-	r.DELETE("/departments/deleteById", middleware.Role(1), d.DeleteById)
-	r.POST("/departments/UpdateNameById", d.UpdateNameById)
-	r.POST("/departments/UpdateDescriptionById", d.UpdateDescriptionById)
-	r.POST("/departments/UpdateParentById", d.UpdateParentById)
+func (r *RoleController) RegisterAuthRouter(router *gin.RouterGroup) {
+	router.GET("/roles/selectAll", r.SelectAll)
+	router.GET("/roles/selectById", r.SelectById)
+	router.GET("/roles/selectByName", r.SelectByName)
+	router.GET("/roles/selectByCode", r.SelectByCode)
+	router.POST("/roles/register", middleware.Role(1), r.Insert)
+	router.DELETE("/roles/deleteById", middleware.Role(1), r.DeleteById)
+	router.POST("/roles/UpdateNameById", middleware.Role(1), r.UpdateNameById)
+	router.POST("/roles/UpdateCodeById", middleware.Role(1), r.UpdateCodeById)
+	router.POST("/roles/UpdateDescriptionById", middleware.Role(1), r.UpdateDescriptionById)
 }

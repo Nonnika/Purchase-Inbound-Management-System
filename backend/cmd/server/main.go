@@ -52,5 +52,8 @@ func main() {
 	departmentController.RegisterRouter(api)
 	departmentController.RegisterAuthRouter(auth)
 
+	roleController := controller.NewRoleController(&dao.RoleDao{DB: client.DB})
+	roleController.RegisterAuthRouter(auth)
+
 	log.Fatal(r.Run(":8080"))
 }
