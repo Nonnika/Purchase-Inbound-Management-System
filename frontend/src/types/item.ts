@@ -18,3 +18,25 @@ export interface Item {
   created_at: string
   updated_at: string
 }
+
+/**
+ * Payload for `POST /api/items/create`. The backend `Create` handler binds
+ * these via Gin ShouldBind (pointers) and requires `name` to be non-empty.
+ * Validation enforced server-side: item_inventory ≥ 0, frozen_inventory ≥ 0,
+ * and frozen_inventory ≤ item_inventory when both are set. All fields except
+ * `name` are optional; omitted optionals serialize to JSON `null` and the
+ * backend normalizes nil pointers appropriately.
+ *
+ * Note: `category_id` and `warehouse_id` reference entities whose controllers
+ * the backend has not registered yet (no `/categories` or `/warehouses`
+ * routes), so the frontend can only collect raw ids for them.
+ */
+export interface ItemInput {
+  name: string
+  category_id: number | null
+  price: number | null
+  item_inventory: number | null
+  frozen_inventory: number | null
+  warehouse_id: number | null
+  warning_level: number | null
+}

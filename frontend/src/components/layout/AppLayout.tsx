@@ -6,6 +6,7 @@ const navItems = [
   { to: '/', label: '概览', end: true },
   { to: '/users', label: '用户管理' },
   { to: '/departments', label: '部门管理' },
+  { to: '/items', label: '物品管理' },
   { to: '/orders', label: '订单管理' },
 ]
 

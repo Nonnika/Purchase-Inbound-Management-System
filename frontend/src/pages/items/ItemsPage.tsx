@@ -1,0 +1,349 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { itemsApi } from '@/api/items'
+import { ApiError, toApiError } from '@/api/errors'
+import { getCurrentUser } from '@/api/auth'
+import type { Item, ItemInput } from '@/types/item'
+import { ROLE_ID } from '@/types/role'
+import { Button } from '@/components/ui/Button/Button'
+import { Tag } from '@/components/ui/Tag/Tag'
+import { TextInput } from '@/components/ui/TextInput/TextInput'
+import { Modal } from '@/components/ui/Modal/Modal'
+import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import styles from './ItemsPage.module.css'
+
+type LoadState = 'loading' | 'error' | 'empty' | 'ready'
+
+const emptyForm: ItemInput = {
+  name: '',
+  category_id: null,
+  price: null,
+  item_inventory: null,
+  frozen_inventory: null,
+  warehouse_id: null,
+  warning_level: null,
+}
+
+/**
+ * Items page — list + create over the item catalog
+ * (backend/internal/controller/itemController.go). Reads need a valid JWT
+ * (any authenticated role); `create` is purchaser/admin-gated on the backend.
+ * The backend exposes no update/delete for items, so the surface is read +
+ * create only. Name search is client-side (no selectByName endpoint exists).
+ *
+ * All failures surface as ApiError (HTTP code + short reason).
+ */
+export function ItemsPage() {
+  const user = getCurrentUser()
+  const roleId = user?.role_id ?? 0
+  const canCreate = roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.PURCHASER
+
+  const [items, setItems] = useState<Item[]>([])
+  const [state, setState] = useState<LoadState>('loading')
+  const [loadError, setLoadError] = useState<ApiError | null>(null)
+
+  // client-side name search
+  const [searchTerm, setSearchTerm] = useState('')
+
+  // create modal
+  const [createOpen, setCreateOpen] = useState(false)
+  const [form, setForm] = useState<ItemInput>(emptyForm)
+  const [formError, setFormError] = useState<ApiError | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const loadAll = useCallback(async () => {
+    setState('loading')
+    setLoadError(null)
+    try {
+      const data = await itemsApi.selectAll()
+      setItems(data)
+      setState(data.length === 0 ? 'empty' : 'ready')
+    } catch (err) {
+      setLoadError(toApiError(err))
+      setState('error')
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadAll()
+  }, [loadAll])
+
+  const filtered = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return items
+    return items.filter(
+      (it) =>
+        it.name.toLowerCase().includes(term) || String(it.id).includes(term),
+    )
+  }, [items, searchTerm])
+
+  const openCreate = () => {
+    setForm({ ...emptyForm })
+    setFormError(null)
+    setCreateOpen(true)
+  }
+
+  const updateField = <K extends keyof ItemInput>(key: K, value: ItemInput[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  /**
+   * Parse an optional numeric input. Empty string → null (unset); otherwise
+   * the parsed number. Non-numeric input falls through to NaN and is rejected
+   * at submit time by the validators below.
+   */
+  const updateOptionalNumber = (key: keyof ItemInput, raw: string) => {
+    if (raw.trim() === '') {
+      updateField(key, null)
+      return
+    }
+    const n = Number(raw)
+    updateField(key, Number.isFinite(n) ? n : null)
+  }
+
+  const submitCreate = async () => {
+    // Validate locally first — mirrors the backend's checks so the user gets
+    // a friendly message instead of a 400 round-trip.
+    if (!form.name.trim()) {
+      setFormError(
+        new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '物品名称不能为空' }),
+      )
+      return
+    }
+    const inventory = form.item_inventory
+    const frozen = form.frozen_inventory
+    if (inventory != null && inventory < 0) {
+      setFormError(
+        new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '库存不能为负数' }),
+      )
+      return
+    }
+    if (frozen != null && frozen < 0) {
+      setFormError(
+        new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '冻结库存不能为负数' }),
+      )
+      return
+    }
+    if (inventory != null && frozen != null && frozen > inventory) {
+      setFormError(
+        new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '冻结库存不能大于可用库存' }),
+      )
+      return
+    }
+
+    setSubmitting(true)
+    setFormError(null)
+    try {
+      await itemsApi.create({
+        ...form,
+        name: form.name.trim(),
+      })
+      setCreateOpen(false)
+      void loadAll()
+    } catch (err) {
+      setFormError(toApiError(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <section className="section">
+      <div className="container">
+        <div className={styles.header}>
+          <div>
+            <div className="section-label">物品管理</div>
+            <h1 className={styles.title}>物品列表</h1>
+          </div>
+          <div className={styles.actions}>
+            {canCreate && (
+              <Button variant="primary" onClick={openCreate}>
+                新增物品
+              </Button>
+            )}
+            <Button variant="tertiary" onClick={() => void loadAll()} disabled={state === 'loading'}>
+              {state === 'loading' ? '加载中…' : '刷新'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Search bar — client-side name/id filter */}
+        <div className={styles.searchBar}>
+          <input
+            className={styles.searchInput}
+            type="text"
+            placeholder="按名称或 ID 筛选"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Body */}
+        {state === 'error' ? (
+          <ErrorBanner
+            error={loadError ?? toApiError(new Error('加载失败'))}
+            prefix="无法加载物品数据"
+            action={
+              <Button variant="tertiary" onClick={() => void loadAll()}>
+                重试
+              </Button>
+            }
+          />
+        ) : state === 'loading' ? (
+          <p className={styles.muted}>正在加载物品数据…</p>
+        ) : filtered.length === 0 ? (
+          <p className={styles.muted}>
+            {items.length === 0
+              ? canCreate
+                ? '暂无物品数据，点击「新增物品」创建。'
+                : '暂无物品数据。'
+              : '没有符合筛选条件的物品。'}
+          </p>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>名称</th>
+                  <th>单价</th>
+                  <th>可用库存</th>
+                  <th>分类 ID</th>
+                  <th>仓库 ID</th>
+                  <th>预警阈值</th>
+                  <th>创建时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((it) => {
+                  const available = it.item_inventory ?? 0
+                  const frozen = it.frozen_inventory ?? 0
+                  const low = it.warning_level != null && available <= it.warning_level
+                  return (
+                    <tr key={it.id}>
+                      <td className={styles.mono}>{it.id}</td>
+                      <td>{it.name}</td>
+                      <td className={styles.mono}>{it.price != null ? `¥${it.price}` : '—'}</td>
+                      <td>
+                        <div className={styles.inv}>
+                          <span className={[styles.mono, low ? styles.invLow : ''].filter(Boolean).join(' ')}>
+                            {available}
+                            {low ? ' · 库存不足' : ''}
+                          </span>
+                          {frozen > 0 && <span className={styles.invFrozen}>冻结 {frozen}</span>}
+                        </div>
+                      </td>
+                      <td className={styles.mono}>{it.category_id ?? '—'}</td>
+                      <td className={styles.mono}>{it.warehouse_id ?? '—'}</td>
+                      <td className={styles.mono}>
+                        {it.warning_level != null ? (
+                          <Tag kind={low ? 'red' : 'gray'}>{it.warning_level}</Tag>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className={styles.mono}>{formatTime(it.created_at)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Create modal — explicit-close only: clicking outside / Esc won't discard input */}
+      <Modal
+        open={createOpen}
+        title="新增物品"
+        onClose={() => setCreateOpen(false)}
+        closeOnScrimClick={false}
+        closeOnEscape={false}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={submitting}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={() => void submitCreate()} disabled={submitting}>
+              {submitting ? '提交中…' : '创建'}
+            </Button>
+          </>
+        }
+      >
+        <TextInput
+          label="物品名称 *"
+          value={form.name}
+          onChange={(e) => updateField('name', e.target.value)}
+          placeholder="物品名称"
+        />
+        <div className={styles.row}>
+          <TextInput
+            label="单价"
+            type="number"
+            value={optionalNumberValue(form.price)}
+            onChange={(e) => updateOptionalNumber('price', e.target.value)}
+            placeholder="可选"
+            helper="人民币金额"
+          />
+          <TextInput
+            label="可用库存"
+            type="number"
+            value={optionalNumberValue(form.item_inventory)}
+            onChange={(e) => updateOptionalNumber('item_inventory', e.target.value)}
+            placeholder="可选"
+            helper="不能为负数"
+          />
+        </div>
+        <div className={styles.row}>
+          <TextInput
+            label="冻结库存"
+            type="number"
+            value={optionalNumberValue(form.frozen_inventory)}
+            onChange={(e) => updateOptionalNumber('frozen_inventory', e.target.value)}
+            placeholder="可选"
+            helper="不能为负数，且 ≤ 可用库存"
+          />
+          <TextInput
+            label="预警阈值"
+            type="number"
+            value={optionalNumberValue(form.warning_level)}
+            onChange={(e) => updateOptionalNumber('warning_level', e.target.value)}
+            placeholder="可选"
+            helper="库存低于此值时标红"
+          />
+        </div>
+        <div className={styles.row}>
+          <TextInput
+            label="分类 ID"
+            type="number"
+            value={optionalNumberValue(form.category_id)}
+            onChange={(e) => updateOptionalNumber('category_id', e.target.value)}
+            placeholder="可选"
+            helper="分类模块暂无后端接口，填写 ID"
+          />
+          <TextInput
+            label="仓库 ID"
+            type="number"
+            value={optionalNumberValue(form.warehouse_id)}
+            onChange={(e) => updateOptionalNumber('warehouse_id', e.target.value)}
+            placeholder="可选"
+            helper="仓库模块暂无后端接口，填写 ID"
+          />
+        </div>
+        {formError && <ErrorBanner error={formError} prefix="创建失败" />}
+      </Modal>
+    </section>
+  )
+}
+
+/** Render an optional number as '' when null (so the input is clearable). */
+function optionalNumberValue(value: number | null): string {
+  return value == null ? '' : String(value)
+}
+
+function formatTime(iso: string): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
