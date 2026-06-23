@@ -266,6 +266,52 @@ func (o *OrderController) VerifyChain(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, result)
 }
 
+func (o *OrderController) Delete(ctx *gin.Context) {
+	id, ok := parseInt64Query(ctx, "id")
+	if !ok {
+		return
+	}
+
+	order, err := o.dao.SelectById(id)
+	if errors.Is(err, sql.ErrNoRows) {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"error": "order is not exist",
+		})
+		return
+	} else if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	if !isAdmin(ctx) && order.UserId != currentUserId(ctx) {
+		ctx.JSON(http.StatusForbidden, gin.H{
+			"error": "permission denied",
+		})
+		return
+	}
+
+	affected, err := o.dao.DeleteById(id, currentUserIdPtr(ctx))
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	if affected == 0 {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"error": "order is not exist",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"affected": affected,
+	})
+}
+
 func (o *OrderController) RegisterAuthRouter(r *gin.RouterGroup) {
 	orderViewer := middleware.Role(model.RoleAdmin, model.RoleAuditor, model.RoleWarehouse)
 	purchaser := middleware.Role(model.RoleAdmin, model.RolePurchaser)
@@ -282,6 +328,7 @@ func (o *OrderController) RegisterAuthRouter(r *gin.RouterGroup) {
 	r.GET("/orders/selectAll", orderViewer, o.SelectAll)
 	r.GET("/orders/selectById", o.SelectById)
 	r.GET("/orders/selectByUserId", o.SelectByUserId)
+	r.DELETE("/orders/delete", o.Delete)
 	r.GET("/orders/events", o.SelectEventsByOrderId)
 	r.GET("/orders/verifyChain", o.VerifyChain)
 }

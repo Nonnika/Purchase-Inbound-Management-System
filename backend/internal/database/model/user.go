@@ -2,6 +2,11 @@ package model
 
 import "time"
 
+const (
+	UserStatusBlocked int64 = 0
+	UserStatusNormal  int64 = 1
+)
+
 type User struct {
 	Id           int64     `json:"id" db:"id"`
 	Username     string    `json:"username" db:"username"`
