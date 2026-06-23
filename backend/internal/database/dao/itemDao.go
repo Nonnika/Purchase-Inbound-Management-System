@@ -46,6 +46,27 @@ func (i *ItemDao) Insert(item *model.Item) (int64, error) {
 	return result.LastInsertId()
 }
 
+func (i *ItemDao) Update(item *model.Item) (int64, error) {
+	query := `
+		update items
+		set name=:name,category_id=:category_id,price=:price,item_inventory=:item_inventory,frozen_inventory=:frozen_inventory,warehouse_id=:warehouse_id,warning_level=:warning_level
+		where id=:id
+	`
+	exec, err := i.DB.NamedExec(query, item)
+	if err != nil {
+		return 0, err
+	}
+	return exec.RowsAffected()
+}
+
+func (i *ItemDao) DeleteById(id int64) (int64, error) {
+	exec, err := i.DB.Exec("delete from items where id = ?", id)
+	if err != nil {
+		return 0, err
+	}
+	return exec.RowsAffected()
+}
+
 func normalizeInt64Ptr(value *int64) *int64 {
 	if value == nil {
 		zero := int64(0)

@@ -36,6 +36,9 @@ func main() {
 		log.Fatal(err)
 	}
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+	if err := jwt.ValidateSecret(jwtSecret); err != nil {
+		log.Fatal(err)
+	}
 	log.Printf("Database connection established successfully")
 
 	jwtMgr := jwt.NewJwtManager(jwtSecret)

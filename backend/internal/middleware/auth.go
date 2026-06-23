@@ -30,8 +30,12 @@ func Auth(jwtMgr *jwt.JManager) gin.HandlerFunc {
 		}
 		claims, err := jwtMgr.ParseToken(token[1])
 		if err != nil {
+			message := "token is invalid"
+			if err.Error() == "token is expired" {
+				message = err.Error()
+			}
 			ctx.JSON(http.StatusUnauthorized, gin.H{
-				"error": err.Error(),
+				"error": message,
 			})
 			ctx.Abort()
 			return

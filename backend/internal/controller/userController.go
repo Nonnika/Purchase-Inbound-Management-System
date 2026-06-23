@@ -349,6 +349,65 @@ func (u *UserController) UpdateRoleById(ctx *gin.Context) {
 	})
 }
 
+func (u *UserController) UpdateDepartmentById(ctx *gin.Context) {
+	_id := ctx.Query("id")
+	if _id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "id is empty",
+		})
+		return
+	}
+
+	id, err := strconv.Atoi(_id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	user, err := u.dao.SelectById(id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "user is not exist",
+		})
+		return
+	}
+
+	_departmentId := ctx.PostForm("department_id")
+	if _departmentId == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "department_id is empty",
+		})
+		return
+	}
+
+	departmentId, err := strconv.ParseInt(_departmentId, 10, 64)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	user.DepartmentId = departmentId
+
+	cnt, err := u.dao.Update(user)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{
+		"affected": cnt,
+	})
+}
+
 func (u *UserController) UpdateRealNameById(ctx *gin.Context) {
 	user, ok := u.userByQueryId(ctx)
 	if !ok {
@@ -402,6 +461,13 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		return
 	}
 
+	if user.Status != model.UserStatusNormal {
+		ctx.JSON(http.StatusForbidden, gin.H{
+			"error": "user is disabled",
+		})
+		return
+	}
+
 	password := ctx.PostForm("password")
 	if password == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -435,6 +501,14 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 
 }
 
+func (u *UserController) BlockById(ctx *gin.Context) {
+	u.updateStatusById(ctx, model.UserStatusBlocked)
+}
+
+func (u *UserController) UnblockById(ctx *gin.Context) {
+	u.updateStatusById(ctx, model.UserStatusNormal)
+}
+
 func bindUserRequest(ctx *gin.Context, req *registerUserRequest) bool {
 	if err := ctx.ShouldBind(req); err != nil {
 		log.Println(err)
@@ -445,6 +519,44 @@ func bindUserRequest(ctx *gin.Context, req *registerUserRequest) bool {
 	}
 
 	return true
+}
+
+func (u *UserController) updateStatusById(ctx *gin.Context, status int64) {
+	_id := ctx.Query("id")
+	if _id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "id is empty",
+		})
+		return
+	}
+
+	id, err := strconv.Atoi(_id)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	affected, err := u.dao.UpdateStatusById(id, status)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	if affected == 0 {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"error": "user is not exist",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"affected": affected,
+	})
 }
 
 func normalizeUserOptionalString(value *string) *string {
@@ -512,6 +624,9 @@ func (u *UserController) RegisterAuthRouter(r *gin.RouterGroup) {
 	r.POST("/users/UpdatePasswordById", admin, u.UpdatePasswordById)
 	r.POST("/users/UpdateUserNameById", admin, u.UpdateUserNameById)
 	r.POST("/users/UpdateRoleById", admin, u.UpdateRoleById)
+	r.POST("/users/UpdateDepartmentById", admin, u.UpdateDepartmentById)
 	r.POST("/users/UpdateRealNameById", admin, u.UpdateRealNameById)
 	r.POST("/users/UpdatePhoneById", admin, u.UpdatePhoneById)
+	r.POST("/users/blockById", admin, u.BlockById)
+	r.POST("/users/unblockById", admin, u.UnblockById)
 }
