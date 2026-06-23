@@ -62,5 +62,13 @@ func main() {
 	itemController := controller.NewItemController(&dao.ItemDao{DB: client.DB})
 	itemController.RegisterAuthRouter(auth)
 
+	warehouseController := controller.NewWarehouseController(&dao.WarehouseDao{DB: client.DB})
+	warehouseController.RegisterRouter(api)
+	warehouseController.RegisterAuthRouter(auth)
+
+	itemCategoryController := controller.NewItemCategoriesController(&dao.ItemCategoriesDao{DB: client.DB})
+	itemCategoryController.RegisterRouter(api)
+	itemCategoryController.RegisterAuthRouter(auth)
+
 	log.Fatal(r.Run(":8080"))
 }
