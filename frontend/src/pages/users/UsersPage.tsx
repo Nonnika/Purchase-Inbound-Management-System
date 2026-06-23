@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/api/users'
 import { ApiError, toApiError } from '@/api/errors'
 import type { User, UserInput } from '@/types/user'
@@ -40,6 +41,7 @@ const emptyForm: UserInput = {
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function UsersPage() {
+  const navigate = useNavigate()
   const [users, setUsers] = useState<User[]>([])
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
@@ -187,6 +189,9 @@ export function UsersPage() {
             </Button>
             <Button variant="tertiary" onClick={() => void loadAll()} disabled={state === 'loading'}>
               {state === 'loading' ? '加载中…' : '刷新'}
+            </Button>
+            <Button variant="ghost" onClick={() => navigate('/roles')}>
+              角色管理
             </Button>
           </div>
         </div>

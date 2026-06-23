@@ -5,6 +5,7 @@ import styles from './AppLayout.module.css'
 const navItems = [
   { to: '/', label: '概览', end: true },
   { to: '/users', label: '用户管理' },
+  { to: '/departments', label: '部门管理' },
   { to: '/purchasing', label: '采购管理' },
   { to: '/inbound', label: '入库管理' },
 ]
