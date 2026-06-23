@@ -5,6 +5,8 @@ import type { Department, DepartmentInput } from '@/types/department'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { TextInput } from '@/components/ui/TextInput/TextInput'
+import { Select } from '@/components/ui/Select/Select'
+import type { SelectOption } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './DepartmentsPage.module.css'
@@ -176,10 +178,16 @@ export function DepartmentsPage() {
   }
 
   // Parent-picker options. For create: every department. For edit: exclude
-  // self and descendants to avoid creating a cycle.
-  const parentOptions = useMemo(() => {
+  // self and descendants to avoid creating a cycle. Rendered as a flat list
+  // (root option first), depth conveyed by leading spaces.
+  const parentSelectOptions = useMemo<SelectOption[]>(() => {
     const forbidden = editing ? descendantIds(tree, editing.id) : new Set<number>()
-    return rows.filter((r) => !forbidden.has(r.dept.id))
+    return [
+      { value: '', label: '（根部门 / 无上级）' },
+      ...rows
+        .filter((r) => !forbidden.has(r.dept.id))
+        .map((r) => ({ value: String(r.dept.id), label: `${'  '.repeat(r.depth)}${r.dept.name}` })),
+    ]
   }, [rows, tree, editing])
 
   return (
@@ -296,11 +304,13 @@ export function DepartmentsPage() {
           onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
           placeholder="可选"
         />
-        <ParentSelect
+        <Select
           label="上级部门"
-          value={createForm.parent}
-          options={parentOptions}
-          onChange={(v) => setCreateForm((f) => ({ ...f, parent: v }))}
+          value={createForm.parent == null ? '' : String(createForm.parent)}
+          onChange={(e) =>
+            setCreateForm((f) => ({ ...f, parent: e.target.value === '' ? null : Number(e.target.value) }))
+          }
+          options={parentSelectOptions}
         />
         {createError && <ErrorBanner error={createError} prefix="创建失败" />}
       </Modal>
@@ -335,49 +345,18 @@ export function DepartmentsPage() {
           onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
           placeholder="可选"
         />
-        <ParentSelect
+        <Select
           label="上级部门"
-          value={editForm.parent}
-          options={parentOptions}
-          onChange={(v) => setEditForm((f) => ({ ...f, parent: v }))}
+          value={editForm.parent == null ? '' : String(editForm.parent)}
+          onChange={(e) =>
+            setEditForm((f) => ({ ...f, parent: e.target.value === '' ? null : Number(e.target.value) }))
+          }
+          options={parentSelectOptions}
           helper="设为「（根部门）」即无上级；不可选择自身或其子部门。"
         />
         {editError && <ErrorBanner error={editError} prefix="保存失败" />}
       </Modal>
     </section>
-  )
-}
-
-/**
- * Carbon-style bottom-border <select> for picking a parent department.
- * `value === null` maps to the "（根部门）" root option.
- */
-interface ParentSelectProps {
-  label: string
-  value: number | null
-  options: FlatRow[]
-  onChange: (value: number | null) => void
-  helper?: string
-}
-
-function ParentSelect({ label, value, options, onChange, helper }: ParentSelectProps) {
-  return (
-    <div className={styles.fieldGroup}>
-      <label className={styles.label}>{label}</label>
-      <select
-        className={styles.select}
-        value={value == null ? '' : String(value)}
-        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-      >
-        <option value="">（根部门 / 无上级）</option>
-        {options.map(({ dept, depth }) => (
-          <option key={dept.id} value={String(dept.id)}>
-            {`${'  '.repeat(depth)}${dept.name}`}
-          </option>
-        ))}
-      </select>
-      {helper && <div className={styles.muted}>{helper}</div>}
-    </div>
   )
 }
 

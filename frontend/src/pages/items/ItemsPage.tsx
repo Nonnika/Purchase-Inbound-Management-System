@@ -11,6 +11,7 @@ import { ROLE_ID } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { TextInput } from '@/components/ui/TextInput/TextInput'
+import { Select } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './ItemsPage.module.css'
@@ -342,42 +343,30 @@ export function ItemsPage() {
           />
         </div>
         <div className={styles.row}>
-          <div className={styles.fieldGroup}>
-            <span className={styles.label}>分类</span>
-            <select
-              className={styles.select}
-              value={form.category_id == null ? '' : String(form.category_id)}
-              onChange={(e) =>
-                updateField('category_id', e.target.value === '' ? null : Number(e.target.value))
-              }
-            >
-              <option value="">（无分类）</option>
-              {categories.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.name}（#{c.id}）
-                </option>
-              ))}
-            </select>
-            {categories.length === 0 && <div className={styles.muted}>暂无分类可选。</div>}
-          </div>
-          <div className={styles.fieldGroup}>
-            <span className={styles.label}>仓库</span>
-            <select
-              className={styles.select}
-              value={form.warehouse_id == null ? '' : String(form.warehouse_id)}
-              onChange={(e) =>
-                updateField('warehouse_id', e.target.value === '' ? null : Number(e.target.value))
-              }
-            >
-              <option value="">（无仓库）</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={String(w.id)}>
-                  {w.name}（#{w.id}）
-                </option>
-              ))}
-            </select>
-            {warehouses.length === 0 && <div className={styles.muted}>暂无仓库可选。</div>}
-          </div>
+          <Select
+            label="分类"
+            value={form.category_id == null ? '' : String(form.category_id)}
+            onChange={(e) =>
+              updateField('category_id', e.target.value === '' ? null : Number(e.target.value))
+            }
+            options={[
+              { value: '', label: '（无分类）' },
+              ...categories.map((c) => ({ value: String(c.id), label: `${c.name}（#${c.id}）` })),
+            ]}
+            helper={categories.length === 0 ? '暂无分类可选。' : undefined}
+          />
+          <Select
+            label="仓库"
+            value={form.warehouse_id == null ? '' : String(form.warehouse_id)}
+            onChange={(e) =>
+              updateField('warehouse_id', e.target.value === '' ? null : Number(e.target.value))
+            }
+            options={[
+              { value: '', label: '（无仓库）' },
+              ...warehouses.map((w) => ({ value: String(w.id), label: `${w.name}（#${w.id}）` })),
+            ]}
+            helper={warehouses.length === 0 ? '暂无仓库可选。' : undefined}
+          />
         </div>
         {formError && <ErrorBanner error={formError} prefix="创建失败" />}
       </Modal>

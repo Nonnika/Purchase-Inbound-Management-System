@@ -11,6 +11,7 @@ import { ROLE_ID } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag, type TagKind } from '@/components/ui/Tag/Tag'
 import { TextInput } from '@/components/ui/TextInput/TextInput'
+import { Select } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './OrdersPage.module.css'
@@ -319,33 +320,30 @@ export function OrdersPage() {
 
         {/* Filters */}
         <div className={styles.filters}>
-          <div className={styles.fieldGroup}>
-            <span className={styles.label}>订单类型</span>
-            <select
-              className={styles.select}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              <option value="ALL">全部</option>
-              <option value={ORDER_TYPE.PURCHASE}>进货</option>
-              <option value={ORDER_TYPE.OUTBOUND}>出货</option>
-            </select>
-          </div>
-          <div className={styles.fieldGroup}>
-            <span className={styles.label}>状态</span>
-            <select
-              className={styles.select}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="ALL">全部</option>
-              {Object.entries(STATUS_META).map(([step, meta]) => (
-                <option key={step} value={step}>
-                  {meta.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            className={styles.filterField}
+            label="订单类型"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            options={[
+              { value: 'ALL', label: '全部' },
+              { value: ORDER_TYPE.PURCHASE, label: '进货' },
+              { value: ORDER_TYPE.OUTBOUND, label: '出货' },
+            ]}
+          />
+          <Select
+            className={styles.filterField}
+            label="状态"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: 'ALL', label: '全部' },
+              ...Object.entries(STATUS_META).map(([step, meta]) => ({
+                value: step,
+                label: meta.label,
+              })),
+            ]}
+          />
         </div>
 
         {actionError && (
@@ -431,35 +429,27 @@ export function OrdersPage() {
           </>
         }
       >
-        <div className={styles.fieldGroup}>
-          <span className={styles.label}>订单类型</span>
-          <select
-            className={styles.select}
-            value={createForm.type}
-            onChange={(e) => setCreateForm((f) => ({ ...f, type: e.target.value as OrderTypeValue }))}
-          >
-            {canCreatePurchase && <option value={ORDER_TYPE.PURCHASE}>进货（采购申请）</option>}
-            {canCreateOutbound && <option value={ORDER_TYPE.OUTBOUND}>出货（出库申请）</option>}
-          </select>
-        </div>
-        <div className={styles.fieldGroup}>
-          <span className={styles.label}>物品</span>
-          <select
-            className={styles.select}
-            value={createForm.itemId === 0 ? '' : String(createForm.itemId)}
-            onChange={(e) =>
-              setCreateForm((f) => ({ ...f, itemId: e.target.value === '' ? 0 : Number(e.target.value) }))
-            }
-          >
-            <option value="">请选择物品</option>
-            {items.map((it) => (
-              <option key={it.id} value={String(it.id)}>
-                {it.name}（#{it.id}）
-              </option>
-            ))}
-          </select>
-          {items.length === 0 && <div className={styles.muted}>暂无可选物品，请先在系统中创建物品。</div>}
-        </div>
+        <Select
+          label="订单类型"
+          value={createForm.type}
+          onChange={(e) => setCreateForm((f) => ({ ...f, type: e.target.value as OrderTypeValue }))}
+          options={[
+            ...(canCreatePurchase ? [{ value: ORDER_TYPE.PURCHASE, label: '进货（采购申请）' }] : []),
+            ...(canCreateOutbound ? [{ value: ORDER_TYPE.OUTBOUND, label: '出货（出库申请）' }] : []),
+          ]}
+        />
+        <Select
+          label="物品"
+          value={createForm.itemId === 0 ? '' : String(createForm.itemId)}
+          onChange={(e) =>
+            setCreateForm((f) => ({ ...f, itemId: e.target.value === '' ? 0 : Number(e.target.value) }))
+          }
+          options={[
+            { value: '', label: '请选择物品' },
+            ...items.map((it) => ({ value: String(it.id), label: `${it.name}（#${it.id}）` })),
+          ]}
+          helper={items.length === 0 ? '暂无可选物品，请先在系统中创建物品。' : undefined}
+        />
         <TextInput
           label="数量 *"
           type="number"
