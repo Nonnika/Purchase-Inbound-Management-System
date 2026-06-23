@@ -4,6 +4,7 @@ import { HomePage } from '@/pages/home/HomePage'
 import { UsersPage } from '@/pages/users/UsersPage'
 import { RolesPage } from '@/pages/roles/RolesPage'
 import { DepartmentsPage } from '@/pages/departments/DepartmentsPage'
+import { OrdersPage } from '@/pages/orders/OrdersPage'
 import { LoginPage } from '@/pages/login/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { isLoggedIn } from '@/api/auth'
@@ -36,9 +37,11 @@ export const router = createBrowserRouter([
       { path: 'users', element: <UsersPage /> },
       { path: 'roles', element: <RolesPage /> },
       { path: 'departments', element: <DepartmentsPage /> },
-      // Placeholder routes — pages to be built out as the backend grows.
-      { path: 'purchasing', element: <HomePage /> },
-      { path: 'inbound', element: <HomePage /> },
+      { path: 'orders', element: <OrdersPage /> },
+      // The procurement flow lives on the unified /orders page; these legacy
+      // nav entries alias there so existing links keep working.
+      { path: 'purchasing', element: <OrdersPage /> },
+      { path: 'inbound', element: <OrdersPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
