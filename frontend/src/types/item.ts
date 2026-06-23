@@ -26,10 +26,6 @@ export interface Item {
  * and frozen_inventory ≤ item_inventory when both are set. All fields except
  * `name` are optional; omitted optionals serialize to JSON `null` and the
  * backend normalizes nil pointers appropriately.
- *
- * Note: `category_id` and `warehouse_id` reference entities whose controllers
- * the backend has not registered yet (no `/categories` or `/warehouses`
- * routes), so the frontend can only collect raw ids for them.
  */
 export interface ItemInput {
   name: string
@@ -40,3 +36,10 @@ export interface ItemInput {
   warehouse_id: number | null
   warning_level: number | null
 }
+
+/**
+ * Payload for `POST /api/items/update?id=`. Mirrors the backend
+ * `updateItemRequest` — every field is an optional pointer, so only changed
+ * fields are sent. Omitted fields are left untouched server-side.
+ */
+export type ItemUpdate = Partial<ItemInput>
