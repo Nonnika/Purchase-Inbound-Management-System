@@ -42,6 +42,14 @@ func (u *UserDao) DeleteUser(id int) (int64, error) {
 	return exec.RowsAffected()
 }
 
+func (u *UserDao) UpdateStatusById(id int, status int64) (int64, error) {
+	exec, err := u.DB.Exec("update users set status = ? where id = ?", status, id)
+	if err != nil {
+		return 0, err
+	}
+	return exec.RowsAffected()
+}
+
 func (u *UserDao) Insert(user model.User) (int64, error) {
 	stat := `
 	INSERT INTO users(username, password_hash, real_name, phone, role_id, department_id) 

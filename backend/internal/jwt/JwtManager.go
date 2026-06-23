@@ -2,15 +2,25 @@ package jwt
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
+const minJwtSecretLength = 32
+
 // JManager JWT 管理器
 type JManager struct {
 	JwtSecret []byte
+}
+
+func ValidateSecret(secret []byte) error {
+	if len(secret) < minJwtSecretLength {
+		return fmt.Errorf("JWT_SECRET must be at least %d bytes", minJwtSecretLength)
+	}
+	return nil
 }
 
 func NewJwtManager(JwtSecret []byte) *JManager {
@@ -20,6 +30,10 @@ func NewJwtManager(JwtSecret []byte) *JManager {
 }
 
 func (j *JManager) GenerateToken(UserID int64, UserName string, RoleID int64) (string, error) {
+	if err := ValidateSecret(j.JwtSecret); err != nil {
+		return "", err
+	}
+
 	expirationTime := time.Now().Add(time.Hour * 48)
 
 	claims := UserClaims{
@@ -40,9 +54,13 @@ func (j *JManager) GenerateToken(UserID int64, UserName string, RoleID int64) (s
 }
 
 func (j *JManager) ParseToken(tokenString string) (*UserClaims, error) {
+	if err := ValidateSecret(j.JwtSecret); err != nil {
+		return nil, err
+	}
+
 	token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("fuck u! WHAT FUCK BRO")
+			return nil, errors.New("token signing method is invalid")
 		}
 		return j.JwtSecret, nil
 	})

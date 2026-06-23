@@ -22,6 +22,7 @@ const (
 	OrderStepAuditRejected     = "AUDIT_REJECTED"
 	OrderStepWarehouseReceived = "WAREHOUSE_RECEIVED"
 	OrderStepWarehouseShipped  = "WAREHOUSE_SHIPPED"
+	OrderStepDeleted           = "ORDER_DELETED"
 )
 
 var validOrderSteps = map[string]struct{}{
@@ -31,6 +32,7 @@ var validOrderSteps = map[string]struct{}{
 	OrderStepAuditRejected:     {},
 	OrderStepWarehouseReceived: {},
 	OrderStepWarehouseShipped:  {},
+	OrderStepDeleted:           {},
 }
 
 var validOrderTypes = map[string]struct{}{
@@ -43,18 +45,28 @@ var validOrderTransitions = map[string]map[string]map[string]struct{}{
 		OrderStepPurchaseRequested: {
 			OrderStepAuditApproved: {},
 			OrderStepAuditRejected: {},
+			OrderStepDeleted:       {},
 		},
 		OrderStepAuditApproved: {
 			OrderStepWarehouseReceived: {},
+			OrderStepDeleted:           {},
+		},
+		OrderStepAuditRejected: {
+			OrderStepDeleted: {},
 		},
 	},
 	OrderTypeOutbound: {
 		OrderStepOutboundRequested: {
 			OrderStepAuditApproved: {},
 			OrderStepAuditRejected: {},
+			OrderStepDeleted:       {},
 		},
 		OrderStepAuditApproved: {
 			OrderStepWarehouseShipped: {},
+			OrderStepDeleted:          {},
+		},
+		OrderStepAuditRejected: {
+			OrderStepDeleted: {},
 		},
 	},
 }
@@ -84,6 +96,13 @@ func (o *OrderDao) SelectByUserId(userId int64) ([]model.Order, error) {
 	orders := make([]model.Order, 0)
 	err := o.DB.Select(&orders, "select id,item_id,user_id,count,order_type,status,created_at,updated_at from orders where user_id = ? order by created_at desc", userId)
 	return orders, err
+}
+
+func (o *OrderDao) DeleteById(orderId int64, operatorUserId *int64) (int64, error) {
+	if _, err := o.AppendEvent(orderId, OrderStepDeleted, operatorUserId, nil); err != nil {
+		return 0, err
+	}
+	return 1, nil
 }
 
 func (o *OrderDao) SelectEventsByOrderId(orderId int64) ([]model.OrderEvent, error) {
@@ -225,6 +244,8 @@ func applyInventoryChange(tx *sqlx.Tx, order *model.Order, step string) error {
 		return shipOutboundInventory(tx, order)
 	case order.OrderType == OrderTypePurchase && step == OrderStepWarehouseReceived:
 		return receivePurchaseInventory(tx, order)
+	case order.OrderType == OrderTypeOutbound && order.Status == OrderStepAuditApproved && step == OrderStepDeleted:
+		return releaseOutboundInventory(tx, order)
 	default:
 		return nil
 	}
@@ -262,6 +283,28 @@ func shipOutboundInventory(tx *sqlx.Tx, order *model.Order) error {
 		  and coalesce(item_inventory, 0) >= ?
 		  and coalesce(frozen_inventory, 0) >= ?
 	`, order.Count, order.Count, order.ItemId, order.Count, order.Count)
+	if err != nil {
+		return err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return errors.New("insufficient frozen inventory")
+	}
+	return nil
+}
+
+func releaseOutboundInventory(tx *sqlx.Tx, order *model.Order) error {
+	result, err := tx.Exec(`
+		update items
+		set frozen_inventory = coalesce(frozen_inventory, 0) - ?,
+		    updated_at = current_timestamp
+		where id = ?
+		  and coalesce(frozen_inventory, 0) >= ?
+	`, order.Count, order.ItemId, order.Count)
 	if err != nil {
 		return err
 	}

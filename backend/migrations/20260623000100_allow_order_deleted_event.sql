@@ -1,0 +1,21 @@
+-- +goose Up
+ALTER TABLE `order_events`
+    DROP CHECK `chk_order_events_step`;
+
+ALTER TABLE `order_events`
+    ADD CONSTRAINT `chk_order_events_step` CHECK (`step` IN ('CREATED', 'PAID', 'ALLOCATED', 'SHIPPED', 'RECEIVED', 'CANCELLED', 'REFUNDED', 'PURCHASE_REQUESTED', 'OUTBOUND_REQUESTED', 'AUDIT_APPROVED', 'AUDIT_REJECTED', 'WAREHOUSE_RECEIVED', 'WAREHOUSE_SHIPPED', 'ORDER_DELETED'));
+
+-- +goose Down
+ALTER TABLE `order_events`
+    DROP CHECK `chk_order_events_step`;
+
+UPDATE `order_events`
+SET `step` = 'CANCELLED'
+WHERE `step` = 'ORDER_DELETED';
+
+UPDATE `orders`
+SET `status` = 'AUDIT_REJECTED'
+WHERE `status` = 'ORDER_DELETED';
+
+ALTER TABLE `order_events`
+    ADD CONSTRAINT `chk_order_events_step` CHECK (`step` IN ('CREATED', 'PAID', 'ALLOCATED', 'SHIPPED', 'RECEIVED', 'CANCELLED', 'REFUNDED', 'PURCHASE_REQUESTED', 'OUTBOUND_REQUESTED', 'AUDIT_APPROVED', 'AUDIT_REJECTED', 'WAREHOUSE_RECEIVED', 'WAREHOUSE_SHIPPED'));
