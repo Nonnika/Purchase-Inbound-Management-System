@@ -19,8 +19,8 @@
   flex-wrap: wrap;
 }
 
-/* Search bar — client-side name filter (no selectByName endpoint exists) */
-.searchBar {
+/* Client-side name/id filter — bottom-border input */
+.searchBarWrap {
   display: flex;
   align-items: flex-end;
   gap: var(--space-03);
@@ -52,56 +52,15 @@
   border-bottom-color: var(--cds-focus);
 }
 
+/* Transient action error (e.g. delete failure) shown below the toolbar */
+.actionErrorWrap {
+  margin-bottom: var(--space-06);
+}
+
 .muted {
   font-size: 14px;
   color: var(--cds-text-secondary);
   letter-spacing: 0.16px;
-}
-
-/* Two-column field rows inside the create modal */
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-05);
-}
-@media (max-width: 480px) {
-  .row {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Carbon bottom-border <select> for the category/warehouse pickers */
-.fieldGroup {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-02);
-}
-
-.label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--cds-text-secondary);
-  letter-spacing: 0.32px;
-}
-
-.select {
-  appearance: none;
-  background: var(--cds-field);
-  color: var(--cds-text-primary);
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0 var(--space-05);
-  height: 40px;
-  border-radius: var(--radius-0);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  letter-spacing: 0.16px;
-  outline: none;
-  transition: border-color 0.15s ease;
-  cursor: pointer;
-}
-.select:focus {
-  border-bottom-color: var(--cds-focus);
 }
 
 /* Table */
@@ -144,18 +103,18 @@
   letter-spacing: 0.16px;
 }
 
-/* Inventory cell: show frozen as a sub-part of available */
-.inv {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.invFrozen {
-  font-size: 12px;
+/* Description can wrap; override the row's nowrap. */
+.desc {
+  white-space: normal;
   color: var(--cds-text-secondary);
-  font-family: var(--font-mono);
+  max-width: 360px;
 }
-.invLow {
-  color: var(--red-60);
-  font-weight: 600;
+
+.actionCol {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actionCol > * + * {
+  margin-left: var(--space-03);
 }

@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { itemsApi } from '@/api/items'
+import { warehousesApi } from '@/api/warehouses'
+import { itemCategoriesApi } from '@/api/itemCategories'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
 import type { Item, ItemInput } from '@/types/item'
+import type { Warehouse } from '@/types/warehouse'
+import type { ItemCategory } from '@/types/itemCategory'
 import { ROLE_ID } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
@@ -41,6 +45,20 @@ export function ItemsPage() {
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
 
+  // warehouses + categories for the create-form pickers and table name resolution
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [categories, setCategories] = useState<ItemCategory[]>([])
+  const warehouseName = useMemo(() => {
+    const m = new Map<number, string>()
+    warehouses.forEach((w) => m.set(w.id, w.name))
+    return m
+  }, [warehouses])
+  const categoryName = useMemo(() => {
+    const m = new Map<number, string>()
+    categories.forEach((c) => m.set(c.id, c.name))
+    return m
+  }, [categories])
+
   // client-side name search
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -65,6 +83,10 @@ export function ItemsPage() {
 
   useEffect(() => {
     void loadAll()
+    // Pickers + table name resolution — load once. Non-fatal on failure: the
+    // selects just stay empty and the table falls back to raw ids.
+    void warehousesApi.selectAll().then(setWarehouses).catch(() => undefined)
+    void itemCategoriesApi.selectAll().then(setCategories).catch(() => undefined)
   }, [loadAll])
 
   const filtered = useMemo(() => {
@@ -207,8 +229,8 @@ export function ItemsPage() {
                   <th>名称</th>
                   <th>单价</th>
                   <th>可用库存</th>
-                  <th>分类 ID</th>
-                  <th>仓库 ID</th>
+                  <th>分类</th>
+                  <th>仓库</th>
                   <th>预警阈值</th>
                   <th>创建时间</th>
                 </tr>
@@ -232,8 +254,16 @@ export function ItemsPage() {
                           {frozen > 0 && <span className={styles.invFrozen}>冻结 {frozen}</span>}
                         </div>
                       </td>
-                      <td className={styles.mono}>{it.category_id ?? '—'}</td>
-                      <td className={styles.mono}>{it.warehouse_id ?? '—'}</td>
+                      <td>
+                        {it.category_id != null
+                          ? categoryName.get(it.category_id) ?? `#${it.category_id}`
+                          : '—'}
+                      </td>
+                      <td>
+                        {it.warehouse_id != null
+                          ? warehouseName.get(it.warehouse_id) ?? `#${it.warehouse_id}`
+                          : '—'}
+                      </td>
                       <td className={styles.mono}>
                         {it.warning_level != null ? (
                           <Tag kind={low ? 'red' : 'gray'}>{it.warning_level}</Tag>
@@ -312,22 +342,42 @@ export function ItemsPage() {
           />
         </div>
         <div className={styles.row}>
-          <TextInput
-            label="分类 ID"
-            type="number"
-            value={optionalNumberValue(form.category_id)}
-            onChange={(e) => updateOptionalNumber('category_id', e.target.value)}
-            placeholder="可选"
-            helper="分类模块暂无后端接口，填写 ID"
-          />
-          <TextInput
-            label="仓库 ID"
-            type="number"
-            value={optionalNumberValue(form.warehouse_id)}
-            onChange={(e) => updateOptionalNumber('warehouse_id', e.target.value)}
-            placeholder="可选"
-            helper="仓库模块暂无后端接口，填写 ID"
-          />
+          <div className={styles.fieldGroup}>
+            <span className={styles.label}>分类</span>
+            <select
+              className={styles.select}
+              value={form.category_id == null ? '' : String(form.category_id)}
+              onChange={(e) =>
+                updateField('category_id', e.target.value === '' ? null : Number(e.target.value))
+              }
+            >
+              <option value="">（无分类）</option>
+              {categories.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}（#{c.id}）
+                </option>
+              ))}
+            </select>
+            {categories.length === 0 && <div className={styles.muted}>暂无分类可选。</div>}
+          </div>
+          <div className={styles.fieldGroup}>
+            <span className={styles.label}>仓库</span>
+            <select
+              className={styles.select}
+              value={form.warehouse_id == null ? '' : String(form.warehouse_id)}
+              onChange={(e) =>
+                updateField('warehouse_id', e.target.value === '' ? null : Number(e.target.value))
+              }
+            >
+              <option value="">（无仓库）</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={String(w.id)}>
+                  {w.name}（#{w.id}）
+                </option>
+              ))}
+            </select>
+            {warehouses.length === 0 && <div className={styles.muted}>暂无仓库可选。</div>}
+          </div>
         </div>
         {formError && <ErrorBanner error={formError} prefix="创建失败" />}
       </Modal>

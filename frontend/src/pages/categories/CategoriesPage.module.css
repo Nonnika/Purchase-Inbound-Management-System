@@ -19,37 +19,9 @@
   flex-wrap: wrap;
 }
 
-/* Search bar — client-side name filter (no selectByName endpoint exists) */
-.searchBar {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-03);
+/* Transient action error (e.g. delete failure) shown below the toolbar */
+.actionErrorWrap {
   margin-bottom: var(--space-06);
-  flex-wrap: wrap;
-}
-
-.searchInput {
-  flex: 1;
-  min-width: 220px;
-  max-width: 360px;
-  background: var(--cds-field);
-  color: var(--cds-text-primary);
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0 var(--space-05);
-  height: 48px;
-  border-radius: var(--radius-0);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  letter-spacing: 0.16px;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-.searchInput::placeholder {
-  color: var(--cds-text-placeholder);
-}
-.searchInput:focus {
-  border-bottom-color: var(--cds-focus);
 }
 
 .muted {
@@ -58,7 +30,7 @@
   letter-spacing: 0.16px;
 }
 
-/* Two-column field rows inside the create modal */
+/* Two-column field rows inside the modal */
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -70,7 +42,7 @@
   }
 }
 
-/* Carbon bottom-border <select> for the category/warehouse pickers */
+/* Carbon bottom-border <select> for the parent picker — mirrors TextInput */
 .fieldGroup {
   display: flex;
   flex-direction: column;
@@ -144,18 +116,31 @@
   letter-spacing: 0.16px;
 }
 
-/* Inventory cell: show frozen as a sub-part of available */
-.inv {
+/* Indented name cell conveys tree depth (8px grid × depth). */
+.nameCell {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: var(--space-03);
 }
-.invFrozen {
-  font-size: 12px;
+
+.indent {
+  display: inline-block;
+  width: var(--space-05);
+  flex-shrink: 0;
+}
+
+/* Description can wrap; override the row's nowrap. */
+.desc {
+  white-space: normal;
   color: var(--cds-text-secondary);
-  font-family: var(--font-mono);
+  max-width: 360px;
 }
-.invLow {
-  color: var(--red-60);
-  font-weight: 600;
+
+.actionCol {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actionCol > * + * {
+  margin-left: var(--space-03);
 }

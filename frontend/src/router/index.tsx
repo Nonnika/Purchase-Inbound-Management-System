@@ -6,6 +6,8 @@ import { RolesPage } from '@/pages/roles/RolesPage'
 import { DepartmentsPage } from '@/pages/departments/DepartmentsPage'
 import { OrdersPage } from '@/pages/orders/OrdersPage'
 import { ItemsPage } from '@/pages/items/ItemsPage'
+import { WarehousesPage } from '@/pages/warehouses/WarehousesPage'
+import { CategoriesPage } from '@/pages/categories/CategoriesPage'
 import { LoginPage } from '@/pages/login/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { isLoggedIn } from '@/api/auth'
@@ -40,6 +42,8 @@ export const router = createBrowserRouter([
       { path: 'departments', element: <DepartmentsPage /> },
       { path: 'orders', element: <OrdersPage /> },
       { path: 'items', element: <ItemsPage /> },
+      { path: 'warehouses', element: <WarehousesPage /> },
+      { path: 'categories', element: <CategoriesPage /> },
       // The procurement flow lives on the unified /orders page; these legacy
       // nav entries alias there so existing links keep working.
       { path: 'purchasing', element: <OrdersPage /> },
