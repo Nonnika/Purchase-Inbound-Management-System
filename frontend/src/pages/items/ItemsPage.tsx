@@ -11,6 +11,7 @@ import { ROLE_ID } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { Modal } from '@/components/ui/Modal/Modal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import { ItemFormFields } from './ItemFormFields'
 import styles from './ItemsPage.module.css'
@@ -77,6 +78,10 @@ export function ItemsPage() {
 
   // transient action error (e.g. delete) shown inline above the table
   const [actionError, setActionError] = useState<ApiError | null>(null)
+
+  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
+  const [pendingDelete, setPendingDelete] = useState<Item | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const loadAll = useCallback(async () => {
     setState('loading')
@@ -261,14 +266,22 @@ export function ItemsPage() {
     }
   }
 
-  const handleDelete = async (item: Item) => {
-    if (!window.confirm(`确认删除物品「${item.name}」(id=${item.id})？`)) return
+  const handleDelete = (item: Item) => {
     setActionError(null)
+    setPendingDelete(item)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      await itemsApi.delete(item.id)
+      await itemsApi.delete(pendingDelete.id)
+      setPendingDelete(null)
       void loadAll()
     } catch (err) {
       setActionError(toApiError(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -393,7 +406,7 @@ export function ItemsPage() {
                           <Button variant="ghost" onClick={() => openEdit(it)}>
                             编辑
                           </Button>
-                          <Button variant="danger" onClick={() => void handleDelete(it)}>
+                          <Button variant="danger" onClick={() => handleDelete(it)}>
                             删除
                           </Button>
                         </td>
@@ -464,6 +477,23 @@ export function ItemsPage() {
           errorPrefix="保存失败"
         />
       </Modal>
+
+      {/* Delete confirmation — destructive, explicit action */}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="删除物品"
+        description={
+          <>
+            确认删除物品 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
+            （id={pendingDelete?.id}）？该操作不可撤销。
+          </>
+        }
+        confirmLabel="删除"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setPendingDelete(null)}
+      />
     </section>
   )
 }

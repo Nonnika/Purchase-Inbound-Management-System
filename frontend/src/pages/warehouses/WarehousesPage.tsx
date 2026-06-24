@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { TextInput } from '@/components/ui/TextInput/TextInput'
 import { Modal } from '@/components/ui/Modal/Modal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './WarehousesPage.module.css'
 
@@ -34,6 +35,10 @@ export function WarehousesPage() {
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
   const [actionError, setActionError] = useState<ApiError | null>(null)
+
+  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
+  const [pendingDelete, setPendingDelete] = useState<Warehouse | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // client-side name search (no selectByName list variant; selectByName returns one)
   const [searchTerm, setSearchTerm] = useState('')
@@ -146,15 +151,23 @@ export function WarehousesPage() {
     }
   }
 
-  const handleDelete = async (w: Warehouse) => {
-    if (!window.confirm(`确认删除仓库「${w.name}」(id=${w.id})？`)) return
+  const handleDelete = (w: Warehouse) => {
     setActionError(null)
+    setPendingDelete(w)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      await warehousesApi.deleteById(w.id)
-      if (editing?.id === w.id) closeEdit()
+      await warehousesApi.deleteById(pendingDelete.id)
+      if (editing?.id === pendingDelete.id) closeEdit()
+      setPendingDelete(null)
       void loadAll()
     } catch (err) {
       setActionError(toApiError(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -241,7 +254,7 @@ export function WarehousesPage() {
                         <Button variant="ghost" onClick={() => openEdit(w)}>
                           编辑
                         </Button>
-                        <Button variant="danger" onClick={() => void handleDelete(w)}>
+                        <Button variant="danger" onClick={() => handleDelete(w)}>
                           删除
                         </Button>
                       </td>
@@ -319,6 +332,23 @@ export function WarehousesPage() {
         />
         {editError && <ErrorBanner error={editError} prefix="保存失败" />}
       </Modal>
+
+      {/* Delete confirmation — destructive, explicit action */}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="删除仓库"
+        description={
+          <>
+            确认删除仓库 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
+            （id={pendingDelete?.id}）？该操作不可撤销。
+          </>
+        }
+        confirmLabel="删除"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setPendingDelete(null)}
+      />
     </section>
   )
 }

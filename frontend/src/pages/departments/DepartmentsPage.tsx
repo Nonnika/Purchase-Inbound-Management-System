@@ -10,6 +10,7 @@ import { TextInput } from '@/components/ui/TextInput/TextInput'
 import { Select } from '@/components/ui/Select/Select'
 import type { SelectOption } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './DepartmentsPage.module.css'
 
@@ -53,6 +54,10 @@ export function DepartmentsPage() {
 
   // transient action error (e.g. delete failure) shown inline below the toolbar
   const [actionError, setActionError] = useState<ApiError | null>(null)
+
+  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
+  const [pendingDelete, setPendingDelete] = useState<Department | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // create modal
   const [createOpen, setCreateOpen] = useState(false)
@@ -174,15 +179,23 @@ export function DepartmentsPage() {
     }
   }
 
-  const handleDelete = async (dept: Department) => {
-    if (!window.confirm(`确认删除部门「${dept.name}」(id=${dept.id})？\n该操作不会自动删除其子部门。`)) return
+  const handleDelete = (dept: Department) => {
     setActionError(null)
+    setPendingDelete(dept)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      await departmentsApi.deleteById(dept.id)
-      if (editing?.id === dept.id) closeEdit()
+      await departmentsApi.deleteById(pendingDelete.id)
+      if (editing?.id === pendingDelete.id) closeEdit()
+      setPendingDelete(null)
       void loadAll()
     } catch (err) {
       setActionError(toApiError(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -276,7 +289,7 @@ export function DepartmentsPage() {
                         <Button variant="ghost" onClick={() => openEdit(dept)}>
                           编辑
                         </Button>
-                        <Button variant="danger" onClick={() => void handleDelete(dept)}>
+                        <Button variant="danger" onClick={() => handleDelete(dept)}>
                           删除
                         </Button>
                       </td>
@@ -371,6 +384,24 @@ export function DepartmentsPage() {
         />
         {editError && <ErrorBanner error={editError} prefix="保存失败" />}
       </Modal>
+
+      {/* Delete confirmation — destructive, explicit action */}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="删除部门"
+        description={
+          <>
+            确认删除部门 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
+            （id={pendingDelete?.id}）？该操作不可撤销。
+            <span className="confirmNote">该操作不会自动删除其子部门。</span>
+          </>
+        }
+        confirmLabel="删除"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setPendingDelete(null)}
+      />
     </section>
   )
 }

@@ -10,6 +10,7 @@ import { TextInput } from '@/components/ui/TextInput/TextInput'
 import { Select } from '@/components/ui/Select/Select'
 import type { SelectOption } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './CategoriesPage.module.css'
 
@@ -48,6 +49,10 @@ export function CategoriesPage() {
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
   const [actionError, setActionError] = useState<ApiError | null>(null)
+
+  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
+  const [pendingDelete, setPendingDelete] = useState<ItemCategory | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // create modal
   const [createOpen, setCreateOpen] = useState(false)
@@ -167,15 +172,23 @@ export function CategoriesPage() {
     }
   }
 
-  const handleDelete = async (cat: ItemCategory) => {
-    if (!window.confirm(`确认删除分类「${cat.name}」(id=${cat.id})？\n该操作不会自动删除其子分类。`)) return
+  const handleDelete = (cat: ItemCategory) => {
     setActionError(null)
+    setPendingDelete(cat)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      await itemCategoriesApi.deleteById(cat.id)
-      if (editing?.id === cat.id) closeEdit()
+      await itemCategoriesApi.deleteById(pendingDelete.id)
+      if (editing?.id === pendingDelete.id) closeEdit()
+      setPendingDelete(null)
       void loadAll()
     } catch (err) {
       setActionError(toApiError(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -269,7 +282,7 @@ export function CategoriesPage() {
                         <Button variant="ghost" onClick={() => openEdit(category)}>
                           编辑
                         </Button>
-                        <Button variant="danger" onClick={() => void handleDelete(category)}>
+                        <Button variant="danger" onClick={() => handleDelete(category)}>
                           删除
                         </Button>
                       </td>
@@ -364,6 +377,24 @@ export function CategoriesPage() {
         />
         {editError && <ErrorBanner error={editError} prefix="保存失败" />}
       </Modal>
+
+      {/* Delete confirmation — destructive, explicit action */}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="删除分类"
+        description={
+          <>
+            确认删除分类 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
+            （id={pendingDelete?.id}）？该操作不可撤销。
+            <span className="confirmNote">该操作不会自动删除其子分类。</span>
+          </>
+        }
+        confirmLabel="删除"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setPendingDelete(null)}
+      />
     </section>
   )
 }

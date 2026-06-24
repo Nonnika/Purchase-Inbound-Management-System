@@ -14,6 +14,7 @@ import { Tag } from '@/components/ui/Tag/Tag'
 import { TextInput } from '@/components/ui/TextInput/TextInput'
 import { Select } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './UsersPage.module.css'
 
@@ -88,6 +89,15 @@ export function UsersPage() {
   // transient action error (e.g. delete) shown inline below the toolbar
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
+  // destructive-action confirmation — native confirm replaced with a Carbon
+  // ConfirmDialog. One pending slot covers both delete and block/unblock.
+  const [pending, setPending] = useState<
+    | { kind: 'delete'; user: User }
+    | { kind: 'toggleBlock'; user: User }
+    | null
+  >(null)
+  const [confirming, setConfirming] = useState(false)
+
   // create modal
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState<UserInput>(emptyForm)
@@ -155,19 +165,12 @@ export function UsersPage() {
     }
   }
 
-  const handleDelete = async (user: User) => {
-    if (!window.confirm(`确认删除用户「${user.real_name || user.username}」(id=${user.id})？`)) return
+  const handleDelete = (user: User) => {
     setActionError(null)
-    try {
-      await usersApi.deleteById(user.id)
-      if (searchResult?.id === user.id) exitSearch()
-      else void loadAll()
-    } catch (err) {
-      setActionError(toApiError(err))
-    }
+    setPending({ kind: 'delete', user })
   }
 
-  const handleToggleBlock = async (user: User) => {
+  const handleToggleBlock = (user: User) => {
     const current = getCurrentUser()
     if (current?.id === user.id) {
       setActionError(
@@ -180,20 +183,28 @@ export function UsersPage() {
       )
       return
     }
-    const isBlocked = user.status === USER_STATUS.DISABLED
-    const verb = isBlocked ? '解封' : '封禁'
-    if (!window.confirm(`确认${verb}用户「${user.real_name || user.username}」(id=${user.id})？`)) return
     setActionError(null)
+    setPending({ kind: 'toggleBlock', user })
+  }
+
+  const confirmPending = async () => {
+    if (!pending) return
+    setConfirming(true)
     try {
-      if (isBlocked) {
-        await usersApi.unblockById(user.id)
+      if (pending.kind === 'delete') {
+        await usersApi.deleteById(pending.user.id)
+      } else if (pending.user.status === USER_STATUS.DISABLED) {
+        await usersApi.unblockById(pending.user.id)
       } else {
-        await usersApi.blockById(user.id)
+        await usersApi.blockById(pending.user.id)
       }
-      if (searchResult?.id === user.id) exitSearch()
+      if (searchResult?.id === pending.user.id) exitSearch()
       else void loadAll()
+      setPending(null)
     } catch (err) {
       setActionError(toApiError(err))
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -486,7 +497,7 @@ export function UsersPage() {
             helper={roles.length === 0 ? '暂无角色可选。' : undefined}
           />
           <Select
-            label="部门"
+            label="部门 *"
             value={form.department_id == null ? '' : String(form.department_id)}
             onChange={(e) =>
               updateField('department_id', e.target.value === '' ? null : Number(e.target.value))
@@ -556,7 +567,7 @@ export function UsersPage() {
                 ]}
               />
               <Select
-                label="部门"
+                label="部门 *"
                 value={editForm.department_id == null ? '' : String(editForm.department_id)}
                 onChange={(e) =>
                   updateEditField(
@@ -584,6 +595,52 @@ export function UsersPage() {
           </>
         )}
       </Modal>
+
+      {/* Destructive-action confirmation — delete or block/unblock */}
+      <ConfirmDialog
+        open={pending !== null}
+        title={
+          pending?.kind === 'delete'
+            ? '删除用户'
+            : pending && pending.user.status === USER_STATUS.DISABLED
+              ? '解封用户'
+              : '封禁用户'
+        }
+        description={
+          <>
+            {pending?.kind === 'delete' ? (
+              <>
+                确认删除用户 <span className="confirmHighlight">「{pending.user.real_name || pending.user.username}」</span>
+                （id={pending.user.id}）？该操作不可撤销。
+              </>
+            ) : (
+              <>
+                确认{pending && pending.user.status === USER_STATUS.DISABLED ? '解封' : '封禁'}用户{' '}
+                <span className="confirmHighlight">「{pending?.user.real_name || pending?.user.username}」</span>
+                （id={pending?.user.id}）？
+                {pending && pending.user.status !== USER_STATUS.DISABLED && (
+                  <span className="confirmNote">封禁后该用户将无法登录系统。</span>
+                )}
+              </>
+            )}
+          </>
+        }
+        confirmLabel={
+          pending?.kind === 'delete'
+            ? '删除'
+            : pending && pending.user.status === USER_STATUS.DISABLED
+              ? '解封'
+              : '封禁'
+        }
+        tone={
+          pending?.kind === 'delete' || (pending && pending.user.status !== USER_STATUS.DISABLED)
+            ? 'danger'
+            : 'primary'
+        }
+        busy={confirming}
+        onConfirm={() => void confirmPending()}
+        onCancel={() => setPending(null)}
+      />
     </section>
   )
 }
