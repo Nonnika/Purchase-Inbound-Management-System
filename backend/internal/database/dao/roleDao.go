@@ -19,6 +19,21 @@ func (r *RoleDao) SelectAll() ([]model.Role, error) {
 	return roles, nil
 }
 
+func (r *RoleDao) SelectPage(page, pageSize int64) ([]model.Role, int64, error) {
+	roles := make([]model.Role, 0)
+	err := r.DB.Select(&roles, "select id,name,code,coalesce(description, '') as description,created_at from roles order by id desc limit ? offset ?", pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int64
+	if err := r.DB.Get(&total, "select count(*) from roles"); err != nil {
+		return nil, 0, err
+	}
+
+	return roles, total, nil
+}
+
 func (r *RoleDao) SelectById(id int64) (*model.Role, error) {
 	var role model.Role
 	err := r.DB.Get(&role, "select id,name,code,coalesce(description, '') as description,created_at from roles where id = ?", id)

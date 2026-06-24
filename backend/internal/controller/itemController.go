@@ -42,7 +42,12 @@ func NewItemController(dao *dao.ItemDao) *ItemController {
 }
 
 func (i *ItemController) SelectAll(ctx *gin.Context) {
-	items, err := i.dao.SelectAll()
+	var req pageRequest
+	if !bindPageRequest(ctx, &req) {
+		return
+	}
+
+	items, total, err := i.dao.SelectPage(req.Page, req.PageSize)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -51,7 +56,7 @@ func (i *ItemController) SelectAll(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, items)
+	respondPage(ctx, items, total)
 }
 
 func (i *ItemController) SelectById(ctx *gin.Context) {
@@ -254,7 +259,7 @@ func (i *ItemController) RegisterAuthRouter(r *gin.RouterGroup) {
 	purchaser := middleware.Role(model.RoleAdmin, model.RolePurchaser)
 	manager := middleware.Role(model.RoleAdmin, model.RoleWarehouse, model.RoleAuditor)
 
-	r.GET("/items/selectAll", i.SelectAll)
+	r.POST("/items/selectAll", i.SelectAll)
 	r.GET("/items/selectById", i.SelectById)
 	r.POST("/items/create", purchaser, i.Create)
 	r.POST("/items/update", manager, i.Update)

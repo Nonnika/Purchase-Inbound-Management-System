@@ -19,6 +19,21 @@ func (u *UserDao) SelectAll() ([]model.User, error) {
 	return userRows, nil
 }
 
+func (u *UserDao) SelectPage(page, pageSize int64) ([]model.User, int64, error) {
+	users := make([]model.User, 0)
+	err := u.DB.Select(&users, "select * from users order by id desc limit ? offset ?", pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int64
+	if err := u.DB.Get(&total, "select count(*) from users"); err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
+}
+
 func (u *UserDao) SelectById(id int) (*model.User, error) {
 	var userRow model.User
 	err := u.DB.Get(&userRow, "select * from users where id = ?", id)
@@ -44,6 +59,14 @@ func (u *UserDao) DeleteUser(id int) (int64, error) {
 
 func (u *UserDao) UpdateStatusById(id int, status int64) (int64, error) {
 	exec, err := u.DB.Exec("update users set status = ? where id = ?", status, id)
+	if err != nil {
+		return 0, err
+	}
+	return exec.RowsAffected()
+}
+
+func (u *UserDao) UpdatePasswordById(id int, passwordHash string) (int64, error) {
+	exec, err := u.DB.Exec("update users set password_hash = ? where id = ?", passwordHash, id)
 	if err != nil {
 		return 0, err
 	}

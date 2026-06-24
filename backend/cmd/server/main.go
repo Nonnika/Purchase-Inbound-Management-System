@@ -73,5 +73,8 @@ func main() {
 	itemCategoryController.RegisterRouter(api)
 	itemCategoryController.RegisterAuthRouter(auth)
 
+	overviewController := controller.NewOverviewController(&dao.OverviewDao{DB: client.DB})
+	overviewController.RegisterAuthRouter(auth)
+
 	log.Fatal(r.Run(":8080"))
 }

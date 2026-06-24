@@ -29,7 +29,12 @@ func NewDepartmentController(dao *dao.DepartmentDao) *DepartmentController {
 }
 
 func (d *DepartmentController) SelectAll(ctx *gin.Context) {
-	rows, err := d.dao.SelectAll()
+	var req pageRequest
+	if !bindPageRequest(ctx, &req) {
+		return
+	}
+
+	rows, total, err := d.dao.SelectPage(req.Page, req.PageSize)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -38,7 +43,7 @@ func (d *DepartmentController) SelectAll(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, rows)
+	respondPage(ctx, rows, total)
 }
 
 func (d *DepartmentController) SelectById(ctx *gin.Context) {
@@ -299,7 +304,7 @@ func (d *DepartmentController) RegisterAuthRouter(r *gin.RouterGroup) {
 	admin := middleware.Role(model.RoleAdmin)
 
 	r.POST("/departments/register", admin, d.Insert)
-	r.GET("/departments/selectAll", d.SelectAll)
+	r.POST("/departments/selectAll", d.SelectAll)
 	r.GET("/departments/selectById", d.SelectById)
 	r.GET("/departments/selectByName", d.SelectByName)
 	r.DELETE("/departments/deleteById", admin, d.DeleteById)
