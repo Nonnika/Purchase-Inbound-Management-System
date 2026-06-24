@@ -110,7 +110,7 @@ export function WarehouseDetailPage() {
       <div className="container">
         <div className={styles.topbar}>
           <Button variant="ghost" onClick={() => navigate('/warehouses')}>
-            ← 返回仓库列表
+            返回仓库列表
           </Button>
         </div>
 
