@@ -1,0 +1,151 @@
+.header {
+  margin-bottom: var(--space-07);
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+  margin-top: var(--space-02);
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+/* Profile card — depth via a layer-01 background, no shadow (DESIGN.md §6).
+   Full content width so the two-column body fills the page instead of leaving
+   a wide gap on the right. */
+.card {
+  background: var(--cds-layer-01);
+  padding: var(--space-07);
+}
+
+/* Two-column body: identity sidebar (fixed) + detail grid (fills remainder). */
+.cardBody {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-08);
+}
+
+.identity {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-03);
+  padding-right: var(--space-06);
+  border-right: 1px solid var(--cds-border-tile);
+}
+
+/* Avatar tile — the sole circular exception (50%), with the user's initial. */
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-circle);
+  background: var(--blue-60);
+  color: var(--white);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0;
+  margin-bottom: var(--space-02);
+}
+
+.displayName {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--cds-text-primary);
+  word-break: break-word;
+}
+
+.username {
+  font-size: 13px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-02);
+  margin-top: var(--space-02);
+}
+
+.errorWrap {
+  margin-top: var(--space-06);
+  padding-top: var(--space-05);
+  border-top: 1px solid var(--cds-border-tile);
+}
+
+/* Detail grid — label column + value column, fills the right side. */
+.detailList {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: baseline;
+  gap: var(--space-05);
+  padding: var(--space-03) 0;
+  border-bottom: 1px solid var(--cds-border-tile);
+}
+.detailRow:last-child {
+  border-bottom: none;
+}
+
+.detailRow dt {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+.detailRow dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--cds-text-primary);
+  letter-spacing: 0.16px;
+  word-break: break-word;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.16px;
+}
+
+/* Stack the sidebar above the details on narrow screens. */
+@media (max-width: 720px) {
+  .card {
+    padding: var(--space-05);
+  }
+  .cardBody {
+    flex-direction: column;
+    gap: var(--space-06);
+  }
+  .identity {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    padding-right: 0;
+    padding-bottom: var(--space-05);
+    border-right: none;
+    border-bottom: 1px solid var(--cds-border-tile);
+  }
+  .avatar {
+    margin-bottom: 0;
+  }
+  .detailRow {
+    grid-template-columns: 96px 1fr;
+    gap: var(--space-04);
+  }
+}

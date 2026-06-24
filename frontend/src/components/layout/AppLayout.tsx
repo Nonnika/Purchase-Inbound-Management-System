@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { getCurrentUser, logout } from '@/api/auth'
 import { ROLE_ID } from '@/types/role'
 import styles from './AppLayout.module.css'
@@ -62,7 +62,7 @@ export function AppLayout() {
       <header className={styles.nav}>
         <div className={styles.navInner}>
           <NavLink to="/" className={styles.brand}>
-            PIMS采购入库管理系统
+            PIMS
           </NavLink>
           <nav className={styles.links}>
             {visibleNavItems.map((item) => (
@@ -79,7 +79,11 @@ export function AppLayout() {
             ))}
           </nav>
           <div className={styles.session}>
-            {user && <span className={styles.user}>{user.username}</span>}
+            {user && (
+              <Link to="/profile" className={styles.user} title="查看个人主页">
+                {user.username}
+              </Link>
+            )}
             <button type="button" className={styles.logout} onClick={handleLogout}>
               退出登录
             </button>
