@@ -10,10 +10,9 @@ import type { ItemCategory } from '@/types/itemCategory'
 import { ROLE_ID } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
-import { TextInput } from '@/components/ui/TextInput/TextInput'
-import { Select } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { ItemFormFields } from './ItemFormFields'
 import styles from './ItemsPage.module.css'
 
 type LoadState = 'loading' | 'error' | 'empty' | 'ready'
@@ -29,11 +28,11 @@ const emptyForm: ItemInput = {
 }
 
 /**
- * Items page — list + create over the item catalog
+ * Items page — list + create + edit + delete over the item catalog
  * (backend/internal/controller/itemController.go). Reads need a valid JWT
- * (any authenticated role); `create` is purchaser/admin-gated on the backend.
- * The backend exposes no update/delete for items, so the surface is read +
- * create only. Name search is client-side (no selectByName endpoint exists).
+ * (any authenticated role); `create` is purchaser/admin-gated; `update`/`delete`
+ * are manager-gated (admin/warehouse/auditor) on the backend. Name search is
+ * client-side (no selectByName endpoint exists).
  *
  * All failures surface as ApiError (HTTP code + short reason).
  */
@@ -300,83 +299,18 @@ export function ItemsPage() {
           </>
         }
       >
-        <TextInput
-          label="物品名称 *"
-          value={form.name}
-          onChange={(e) => updateField('name', e.target.value)}
-          placeholder="物品名称"
+        <ItemFormFields
+          form={form}
+          updateField={updateField}
+          updateOptionalNumber={updateOptionalNumber}
+          categories={categories}
+          warehouses={warehouses}
+          error={formError}
+          errorPrefix="创建失败"
         />
-        <div className={styles.row}>
-          <TextInput
-            label="单价"
-            type="number"
-            value={optionalNumberValue(form.price)}
-            onChange={(e) => updateOptionalNumber('price', e.target.value)}
-            placeholder="可选"
-            helper="人民币金额"
-          />
-          <TextInput
-            label="可用库存"
-            type="number"
-            value={optionalNumberValue(form.item_inventory)}
-            onChange={(e) => updateOptionalNumber('item_inventory', e.target.value)}
-            placeholder="可选"
-            helper="不能为负数"
-          />
-        </div>
-        <div className={styles.row}>
-          <TextInput
-            label="冻结库存"
-            type="number"
-            value={optionalNumberValue(form.frozen_inventory)}
-            onChange={(e) => updateOptionalNumber('frozen_inventory', e.target.value)}
-            placeholder="可选"
-            helper="不能为负数，且 ≤ 可用库存"
-          />
-          <TextInput
-            label="预警阈值"
-            type="number"
-            value={optionalNumberValue(form.warning_level)}
-            onChange={(e) => updateOptionalNumber('warning_level', e.target.value)}
-            placeholder="可选"
-            helper="库存低于此值时标红"
-          />
-        </div>
-        <div className={styles.row}>
-          <Select
-            label="分类"
-            value={form.category_id == null ? '' : String(form.category_id)}
-            onChange={(e) =>
-              updateField('category_id', e.target.value === '' ? null : Number(e.target.value))
-            }
-            options={[
-              { value: '', label: '（无分类）' },
-              ...categories.map((c) => ({ value: String(c.id), label: `${c.name}（#${c.id}）` })),
-            ]}
-            helper={categories.length === 0 ? '暂无分类可选。' : undefined}
-          />
-          <Select
-            label="仓库"
-            value={form.warehouse_id == null ? '' : String(form.warehouse_id)}
-            onChange={(e) =>
-              updateField('warehouse_id', e.target.value === '' ? null : Number(e.target.value))
-            }
-            options={[
-              { value: '', label: '（无仓库）' },
-              ...warehouses.map((w) => ({ value: String(w.id), label: `${w.name}（#${w.id}）` })),
-            ]}
-            helper={warehouses.length === 0 ? '暂无仓库可选。' : undefined}
-          />
-        </div>
-        {formError && <ErrorBanner error={formError} prefix="创建失败" />}
       </Modal>
     </section>
   )
-}
-
-/** Render an optional number as '' when null (so the input is clearable). */
-function optionalNumberValue(value: number | null): string {
-  return value == null ? '' : String(value)
 }
 
 function formatTime(iso: string): string {
