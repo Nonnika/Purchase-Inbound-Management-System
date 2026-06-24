@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { usersApi } from '@/api/users'
 import { rolesApi } from '@/api/roles'
 import { departmentsApi } from '@/api/departments'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
 import type { User } from '@/types/user'
@@ -51,8 +52,8 @@ export function UserDetailPage() {
     try {
       const [u, allRoles, allDepts] = await Promise.all([
         usersApi.selectById(userId),
-        rolesApi.selectAll().catch(() => [] as Role[]),
-        departmentsApi.selectAll().catch(() => [] as Department[]),
+        fetchAll(rolesApi.selectAll).catch(() => [] as Role[]),
+        fetchAll(departmentsApi.selectAll).catch(() => [] as Department[]),
       ])
       setUser(u)
       setRoles(allRoles)

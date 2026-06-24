@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { itemCategoriesApi } from '@/api/itemCategories'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
 import type { ItemCategory } from '@/types/itemCategory'
 import { Button } from '@/components/ui/Button/Button'
@@ -39,7 +40,7 @@ export function CategoryDetailPage() {
     try {
       const [cat, allCats] = await Promise.all([
         itemCategoriesApi.selectById(categoryId),
-        itemCategoriesApi.selectAll(),
+        fetchAll(itemCategoriesApi.selectAll),
       ])
       setCategory(cat)
       setAll(allCats)

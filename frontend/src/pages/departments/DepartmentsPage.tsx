@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { departmentsApi } from '@/api/departments'
+import { fetchAll } from '@/api/pagination'
 import { getCurrentUser } from '@/api/auth'
 import { ApiError, toApiError } from '@/api/errors'
 import { ROLE_ID } from '@/types/role'
@@ -76,7 +77,9 @@ export function DepartmentsPage() {
     setState('loading')
     setLoadError(null)
     try {
-      const data = await departmentsApi.selectAll()
+      // The tree view needs every department to rebuild parent-child adjacency,
+      // so auto-page through the (now paginated) selectAll endpoint.
+      const data = await fetchAll(departmentsApi.selectAll)
       setDepartments(data)
       setState(data.length === 0 ? 'empty' : 'ready')
     } catch (err) {

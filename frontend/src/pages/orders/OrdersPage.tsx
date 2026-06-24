@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { ordersApi } from '@/api/orders'
 import type { AppendEventInput } from '@/api/orders'
 import { itemsApi } from '@/api/items'
+import { fetchAll } from '@/api/pagination'
+import { usePagedList } from '@/hooks/usePagedList'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
 import type { ChainVerifyResult, Order, OrderEvent } from '@/types/order'
@@ -14,9 +16,10 @@ import { TextInput } from '@/components/ui/TextInput/TextInput'
 import { Select } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { Pagination } from '@/components/ui/Pagination/Pagination'
 import styles from './OrdersPage.module.css'
 
-type LoadState = 'loading' | 'error' | 'empty' | 'ready'
+const PAGE_SIZE = 10
 
 interface StepAction {
   label: string
@@ -87,12 +90,18 @@ const emptyCreateForm: CreateForm = {
   note: '',
 }
 
+/** No-op loader used when the current user can't call the all-orders endpoint. */
+const noopLoad = async (): Promise<{ list: Order[]; total: number }> => ({ list: [], total: 0 })
+
 /**
  * Orders page — the core procurement/inbound business flow. Orders form a
  * hash-chained event log across roles (purchaser/applicant → auditor →
  * warehouse). The list adapts to the current user's role:
- *   - viewers (admin/auditor/warehouse) see all orders via selectAll;
- *   - others (purchaser/applicant) see only their own via selectByUserId.
+ *   - viewers (admin/auditor/warehouse) see all orders via the paginated
+ *     selectAll; with a type/status filter active it fetches every order so the
+ *     filter matches across the whole set;
+ *   - others (purchaser/applicant) see only their own via selectByUserId (a
+ *     full, non-paginated list) and filter client-side.
  * Action buttons are gated by role AND by the order's current status (the
  * backend enforces the same transition rules).
  */
@@ -103,12 +112,44 @@ export function OrdersPage() {
   const canCreatePurchase = roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.PURCHASER
   const canCreateOutbound = roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.APPLICANT
 
-  const [orders, setOrders] = useState<Order[]>([])
-  const [state, setState] = useState<LoadState>('loading')
-  const [loadError, setLoadError] = useState<ApiError | null>(null)
-  const [actionError, setActionError] = useState<ApiError | null>(null)
+  // filters
+  const [typeFilter, setTypeFilter] = useState<string>('ALL')
+  const [statusFilter, setStatusFilter] = useState<string>('ALL')
+  const filtersActive = typeFilter !== 'ALL' || statusFilter !== 'ALL'
 
-  // items for name resolution + create-form picker
+  // Viewer branch: server-paginated all-orders, with a search (fetch-all) mode
+  // while a filter is active. Non-viewers get a no-op loader here and use the
+  // own-orders path below.
+  const paged = usePagedList<Order>({
+    loadPage: canViewAll ? ordersApi.selectAll : noopLoad,
+    pageSize: PAGE_SIZE,
+    searchMode: canViewAll && filtersActive,
+  })
+
+  // Non-viewer branch: own orders via selectByUserId (full list, not paginated).
+  const [ownOrders, setOwnOrders] = useState<Order[]>([])
+  const [ownLoading, setOwnLoading] = useState(!canViewAll)
+  const [ownError, setOwnError] = useState<ApiError | null>(null)
+
+  const loadOwn = useCallback(async () => {
+    setOwnLoading(true)
+    setOwnError(null)
+    try {
+      const data = await ordersApi.selectByUserId(user?.id ?? 0)
+      setOwnOrders(data)
+    } catch (err) {
+      setOwnError(toApiError(err))
+    } finally {
+      setOwnLoading(false)
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (canViewAll) return
+    void loadOwn()
+  }, [canViewAll, loadOwn])
+
+  // items for name resolution + create-form picker (full set)
   const [items, setItems] = useState<Item[]>([])
   const itemsMap = useMemo(() => {
     const m = new Map<number, Item>()
@@ -116,9 +157,35 @@ export function OrdersPage() {
     return m
   }, [items])
 
-  // filters
-  const [typeFilter, setTypeFilter] = useState<string>('ALL')
-  const [statusFilter, setStatusFilter] = useState<string>('ALL')
+  const loadItems = useCallback(async () => {
+    try {
+      const data = await fetchAll(itemsApi.selectAll)
+      setItems(data)
+    } catch {
+      // Non-fatal: item picker just falls back to raw ids.
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadItems()
+  }, [loadItems])
+
+  // Unified view state across both branches.
+  const baseRows = canViewAll ? paged.rows : ownOrders
+  const loading = canViewAll ? paged.loading : ownLoading
+  const error = canViewAll ? paged.error : ownError
+  const reload = canViewAll ? paged.reload : loadOwn
+  const showPager = canViewAll && !filtersActive
+
+  const filtered = useMemo(
+    () =>
+      baseRows.filter(
+        (o) =>
+          (typeFilter === 'ALL' || o.order_type === typeFilter) &&
+          (statusFilter === 'ALL' || o.status === statusFilter),
+      ),
+    [baseRows, typeFilter, statusFilter],
+  )
 
   // create modal
   const [createOpen, setCreateOpen] = useState(false)
@@ -137,35 +204,7 @@ export function OrdersPage() {
   const [pendingStep, setPendingStep] = useState<string | null>(null)
   const [actionNote, setActionNote] = useState('')
   const [actionModalError, setActionModalError] = useState<ApiError | null>(null)
-
-  const loadOrders = useCallback(async () => {
-    setState('loading')
-    setLoadError(null)
-    try {
-      const data = canViewAll
-        ? await ordersApi.selectAll()
-        : await ordersApi.selectByUserId(user?.id ?? 0)
-      setOrders(data)
-      setState(data.length === 0 ? 'empty' : 'ready')
-    } catch (err) {
-      setLoadError(toApiError(err))
-      setState('error')
-    }
-  }, [canViewAll, user?.id])
-
-  const loadItems = useCallback(async () => {
-    try {
-      const data = await itemsApi.selectAll()
-      setItems(data)
-    } catch {
-      // Non-fatal: item picker just falls back to raw ids.
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadOrders()
-    void loadItems()
-  }, [loadOrders, loadItems])
+  const [actionError, setActionError] = useState<ApiError | null>(null)
 
   // Load the event chain + verification whenever an order is opened.
   useEffect(() => {
@@ -193,21 +232,9 @@ export function OrdersPage() {
     }
   }, [selected])
 
-  const filtered = useMemo(
-    () =>
-      orders.filter(
-        (o) =>
-          (typeFilter === 'ALL' || o.order_type === typeFilter) &&
-          (statusFilter === 'ALL' || o.status === statusFilter),
-      ),
-    [orders, typeFilter, statusFilter],
-  )
-
   const openCreate = () => {
     // Default to whichever type this user is allowed to create.
-    const defaultType = canCreatePurchase
-      ? ORDER_TYPE.PURCHASE
-      : ORDER_TYPE.OUTBOUND
+    const defaultType = canCreatePurchase ? ORDER_TYPE.PURCHASE : ORDER_TYPE.OUTBOUND
     setCreateForm({ ...emptyCreateForm, type: defaultType })
     setCreateError(null)
     setActionError(null)
@@ -249,7 +276,7 @@ export function OrdersPage() {
         })
       }
       setCreateOpen(false)
-      void loadOrders()
+      reload()
     } catch (err) {
       setCreateError(toApiError(err))
     } finally {
@@ -281,7 +308,7 @@ export function OrdersPage() {
       setSelected(refreshed)
       setEvents(evs)
       setChain(ver)
-      void loadOrders()
+      reload()
     } catch (err) {
       setActionModalError(toApiError(err))
     } finally {
@@ -312,13 +339,15 @@ export function OrdersPage() {
                 新建订单
               </Button>
             )}
-            <Button variant="tertiary" onClick={() => void loadOrders()} disabled={state === 'loading'}>
-              {state === 'loading' ? '加载中…' : '刷新'}
+            <Button variant="tertiary" onClick={reload} disabled={loading}>
+              {loading ? '加载中…' : '刷新'}
             </Button>
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters — for viewers these switch to fetch-all mode so the filter
+            matches across every order; for non-viewers they filter the already-
+            full own-orders list client-side. */}
         <div className={styles.filters}>
           <Select
             className={styles.filterField}
@@ -352,62 +381,73 @@ export function OrdersPage() {
           </div>
         )}
 
-        {state === 'error' ? (
+        {error ? (
           <ErrorBanner
-            error={loadError ?? toApiError(new Error('加载失败'))}
+            error={error}
             prefix="无法加载订单数据"
             action={
-              <Button variant="tertiary" onClick={() => void loadOrders()}>
+              <Button variant="tertiary" onClick={reload}>
                 重试
               </Button>
             }
           />
-        ) : state === 'loading' ? (
+        ) : loading ? (
           <p className={styles.muted}>正在加载订单数据…</p>
         ) : filtered.length === 0 ? (
           <p className={styles.muted}>
-            {orders.length === 0 ? '暂无订单数据。' : '没有符合筛选条件的订单。'}
+            {baseRows.length === 0 ? '暂无订单数据。' : '没有符合筛选条件的订单。'}
           </p>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>物品</th>
-                  <th>数量</th>
-                  <th>类型</th>
-                  <th>状态</th>
-                  <th>申请人</th>
-                  <th>创建时间</th>
-                  <th className={styles.actionCol}>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((o) => {
-                  const meta = STATUS_META[o.status] ?? { label: o.status, kind: 'gray' as TagKind }
-                  return (
-                    <tr key={o.id} onClick={() => setSelected(o)}>
-                      <td className={styles.mono}>{o.id}</td>
-                      <td>{itemsMap.get(o.item_id)?.name ?? `#${o.item_id}`}</td>
-                      <td className={styles.mono}>{o.count}</td>
-                      <td>{o.order_type === ORDER_TYPE.PURCHASE ? '进货' : '出货'}</td>
-                      <td>
-                        <Tag kind={meta.kind}>{meta.label}</Tag>
-                      </td>
-                      <td className={styles.mono}>#{o.user_id}</td>
-                      <td className={styles.mono}>{formatTime(o.created_at)}</td>
-                      <td className={styles.actionCol}>
-                        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setSelected(o) }}>
-                          详情
-                        </Button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>物品</th>
+                    <th>数量</th>
+                    <th>类型</th>
+                    <th>状态</th>
+                    <th>申请人</th>
+                    <th>创建时间</th>
+                    <th className={styles.actionCol}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((o) => {
+                    const meta = STATUS_META[o.status] ?? { label: o.status, kind: 'gray' as TagKind }
+                    return (
+                      <tr key={o.id} onClick={() => setSelected(o)}>
+                        <td className={styles.mono}>{o.id}</td>
+                        <td>{itemsMap.get(o.item_id)?.name ?? `#${o.item_id}`}</td>
+                        <td className={styles.mono}>{o.count}</td>
+                        <td>{o.order_type === ORDER_TYPE.PURCHASE ? '进货' : '出货'}</td>
+                        <td>
+                          <Tag kind={meta.kind}>{meta.label}</Tag>
+                        </td>
+                        <td className={styles.mono}>#{o.user_id}</td>
+                        <td className={styles.mono}>{formatTime(o.created_at)}</td>
+                        <td className={styles.actionCol}>
+                          <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setSelected(o) }}>
+                            详情
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {showPager && (
+              <Pagination
+                page={paged.page}
+                pageSize={PAGE_SIZE}
+                total={paged.total}
+                loading={loading}
+                onChange={paged.goToPage}
+              />
+            )}
+          </>
         )}
       </div>
 

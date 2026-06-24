@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { itemCategoriesApi } from '@/api/itemCategories'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
 import type { ItemCategory, ItemCategoryInput } from '@/types/itemCategory'
@@ -72,7 +73,9 @@ export function CategoriesPage() {
     setState('loading')
     setLoadError(null)
     try {
-      const data = await itemCategoriesApi.selectAll()
+      // The tree view needs every category to rebuild parent-child adjacency,
+      // so auto-page through the (now paginated) selectAll endpoint.
+      const data = await fetchAll(itemCategoriesApi.selectAll)
       setCategories(data)
       setState(data.length === 0 ? 'empty' : 'ready')
     } catch (err) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getCurrentUser } from '@/api/auth'
 import { rolesApi } from '@/api/roles'
 import { departmentsApi } from '@/api/departments'
+import { fetchAll } from '@/api/pagination'
 import { toApiError, type ApiError } from '@/api/errors'
 import type { Role } from '@/types/role'
 import type { Department } from '@/types/department'
@@ -39,12 +40,12 @@ export function ProfilePage() {
     let alive = true
     setError(null)
     Promise.all([
-      rolesApi.selectAll().catch((e) => {
+      fetchAll(rolesApi.selectAll).catch((e) => {
         // Non-fatal, but surface it so an admin knows why names are missing.
         if (alive) setError(toApiError(e))
         return [] as Role[]
       }),
-      departmentsApi.selectAll().catch(() => [] as Department[]),
+      fetchAll(departmentsApi.selectAll).catch(() => [] as Department[]),
     ]).then(([r, d]) => {
       if (!alive) return
       setRoles(r)

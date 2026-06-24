@@ -1,0 +1,81 @@
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-05);
+  flex-wrap: wrap;
+  margin-top: var(--space-05);
+  padding: var(--space-04) var(--space-05);
+  background: var(--cds-layer-01);
+}
+
+.summary {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+/* Numbers render in the mono face so digits stay aligned (tabular-nums). */
+.num {
+  font-family: var(--font-mono);
+  color: var(--cds-text-primary);
+  letter-spacing: 0.16px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-03);
+  flex-wrap: wrap;
+}
+
+.pages {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-01);
+}
+
+.pageBtn {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 var(--space-03);
+  border: 1px solid transparent;
+  border-radius: var(--radius-0);
+  background: transparent;
+  color: var(--cds-text-primary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.pageBtn:hover:not(:disabled):not(.active) {
+  background: var(--cds-layer-01-hover);
+}
+
+.pageBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Active page — Blue 60 accent, matching the single-accent rule. */
+.active {
+  background: var(--cds-button-primary);
+  color: var(--cds-text-on-color);
+}
+
+.active:hover:not(:disabled) {
+  background: var(--cds-button-primary-hover);
+}
+
+.gap {
+  min-width: 24px;
+  text-align: center;
+  color: var(--cds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.16px;
+}

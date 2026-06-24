@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/api/users'
 import { rolesApi } from '@/api/roles'
 import { departmentsApi } from '@/api/departments'
-import { getCurrentUser } from '@/api/auth'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
+import { getCurrentUser } from '@/api/auth'
+import { usePagedList } from '@/hooks/usePagedList'
 import type { User, UserInput } from '@/types/user'
 import { USER_STATUS } from '@/types/user'
 import type { Role } from '@/types/role'
@@ -16,9 +18,10 @@ import { Select } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { Pagination } from '@/components/ui/Pagination/Pagination'
 import styles from './UsersPage.module.css'
 
-type LoadState = 'loading' | 'error' | 'empty' | 'ready'
+const PAGE_SIZE = 10
 
 /**
  * Validates a phone number. Accepts:
@@ -54,17 +57,19 @@ interface EditForm {
 
 /**
  * Users page — exercises the full user API surface:
- *   selectAll (list), selectByUserName (search), register (create),
- *   deleteById (remove), and the per-field Update*ById edits. Role/department
- *   pickers populate from /roles/selectAll and /departments/selectAll. Requires
- *   the Go backend running on :8080 and an admin JWT.
+ *   selectAll (paginated list), selectByUserName (single-user search), register
+ *   (create), deleteById (remove), and the per-field Update*ById edits. Role/
+ *   department pickers populate from /roles/selectAll and /departments/selectAll
+ *   (fetched in full). Requires the Go backend running on :8080 and an admin JWT.
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function UsersPage() {
   const navigate = useNavigate()
-  const [users, setUsers] = useState<User[]>([])
-  const [state, setState] = useState<LoadState>('loading')
-  const [loadError, setLoadError] = useState<ApiError | null>(null)
+  const { rows: users, total, page, loading, error, reload, goToPage } = usePagedList<User>({
+    loadPage: usersApi.selectAll,
+    pageSize: PAGE_SIZE,
+    searchMode: false,
+  })
 
   // roles + departments for the pickers and table name resolution
   const [roles, setRoles] = useState<Role[]>([])
@@ -112,32 +117,18 @@ export function UsersPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const loadAll = useCallback(async () => {
-    setState('loading')
-    setLoadError(null)
-    try {
-      const data = await usersApi.selectAll()
-      setUsers(data)
-      setState(data.length === 0 ? 'empty' : 'ready')
-    } catch (err) {
-      setLoadError(toApiError(err))
-      setState('error')
-    }
-  }, [])
-
+  // Pickers + table name resolution — load once (full set). Non-fatal on
+  // failure: selects stay empty and the table falls back to raw ids.
   useEffect(() => {
-    void loadAll()
-    // Pickers + table name resolution — load once. Non-fatal on failure:
-    // selects stay empty and the table falls back to raw ids.
-    void rolesApi.selectAll().then(setRoles).catch(() => undefined)
-    void departmentsApi.selectAll().then(setDepartments).catch(() => undefined)
-  }, [loadAll])
+    void fetchAll(rolesApi.selectAll).then(setRoles).catch(() => undefined)
+    void fetchAll(departmentsApi.selectAll).then(setDepartments).catch(() => undefined)
+  }, [])
 
   const exitSearch = () => {
     setSearchResult(undefined)
     setSearchError(null)
     setSearchTerm('')
-    void loadAll()
+    reload()
   }
 
   const runSearch = async () => {
@@ -193,7 +184,7 @@ export function UsersPage() {
         await usersApi.blockById(pending.user.id)
       }
       if (searchResult?.id === pending.user.id) exitSearch()
-      else void loadAll()
+      else reload()
       setPending(null)
     } catch (err) {
       setActionError(toApiError(err))
@@ -291,7 +282,7 @@ export function UsersPage() {
       setConfirmDeleteOpen(false)
       closeEdit()
       if (searchResult?.id === editing.id) exitSearch()
-      else void loadAll()
+      else reload()
     } catch (err) {
       setActionError(toApiError(err))
       setConfirmDeleteOpen(false)
@@ -355,7 +346,7 @@ export function UsersPage() {
       }
       closeEdit()
       if (searchResult?.id === id) exitSearch()
-      else void loadAll()
+      else reload()
     } catch (err) {
       setEditError(toApiError(err))
     } finally {
@@ -377,8 +368,8 @@ export function UsersPage() {
             <Button variant="primary" onClick={openCreate}>
               新增用户
             </Button>
-            <Button variant="tertiary" onClick={() => void loadAll()} disabled={state === 'loading'}>
-              {state === 'loading' ? '加载中…' : '刷新'}
+            <Button variant="tertiary" onClick={reload} disabled={loading}>
+              {loading ? '加载中…' : '刷新'}
             </Button>
             <Button variant="ghost" onClick={() => navigate('/roles')}>
               角色管理
@@ -430,28 +421,37 @@ export function UsersPage() {
           ) : (
             <p className={styles.muted}>未找到用户名为「{searchTerm}」的用户。</p>
           )
-        ) : state === 'error' ? (
+        ) : error ? (
           <ErrorBanner
-            error={loadError ?? toApiError(new Error('加载失败'))}
+            error={error}
             prefix="无法加载用户数据"
             action={
-              <Button variant="tertiary" onClick={() => void loadAll()}>
+              <Button variant="tertiary" onClick={reload}>
                 重试
               </Button>
             }
           />
-        ) : state === 'loading' ? (
+        ) : loading ? (
           <p className={styles.muted}>正在加载用户数据…</p>
-        ) : state === 'empty' ? (
+        ) : users.length === 0 ? (
           <p className={styles.muted}>暂无用户数据，点击「新增用户」创建。</p>
         ) : (
-          <UserTable
-            users={users}
-            roleName={roleName}
-            deptName={deptName}
-            onEdit={openEdit}
-            onToggleBlock={handleToggleBlock}
-          />
+          <>
+            <UserTable
+              users={users}
+              roleName={roleName}
+              deptName={deptName}
+              onEdit={openEdit}
+              onToggleBlock={handleToggleBlock}
+            />
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              loading={loading}
+              onChange={goToPage}
+            />
+          </>
         )}
       </div>
 

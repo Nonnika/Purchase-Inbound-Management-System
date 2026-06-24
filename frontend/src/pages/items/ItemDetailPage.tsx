@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { itemsApi } from '@/api/items'
 import { warehousesApi } from '@/api/warehouses'
 import { itemCategoriesApi } from '@/api/itemCategories'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
 import type { Item } from '@/types/item'
 import type { Warehouse } from '@/types/warehouse'
@@ -47,8 +48,8 @@ export function ItemDetailPage() {
     try {
       const [it, allWh, allCats] = await Promise.all([
         itemsApi.selectById(itemId),
-        warehousesApi.selectAll().catch(() => [] as Warehouse[]),
-        itemCategoriesApi.selectAll().catch(() => [] as ItemCategory[]),
+        fetchAll(warehousesApi.selectAll).catch(() => [] as Warehouse[]),
+        fetchAll(itemCategoriesApi.selectAll).catch(() => [] as ItemCategory[]),
       ])
       setItem(it)
       setWarehouses(allWh)

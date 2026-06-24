@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { warehousesApi } from '@/api/warehouses'
 import { itemsApi } from '@/api/items'
 import { itemCategoriesApi } from '@/api/itemCategories'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
 import type { Warehouse } from '@/types/warehouse'
 import type { Item } from '@/types/item'
@@ -50,9 +51,9 @@ export function WarehouseDetailPage() {
       // Warehouse via selectAll + match (no admin-gated selectById needed);
       // items + categories via their open reads. All resolve together.
       const [allWarehouses, allItems, allCats] = await Promise.all([
-        warehousesApi.selectAll(),
-        itemsApi.selectAll(),
-        itemCategoriesApi.selectAll().catch(() => [] as ItemCategory[]),
+        fetchAll(warehousesApi.selectAll),
+        fetchAll(itemsApi.selectAll),
+        fetchAll(itemCategoriesApi.selectAll).catch(() => [] as ItemCategory[]),
       ])
       const wh = allWarehouses.find((w) => w.id === warehouseId) ?? null
       setWarehouse(wh)

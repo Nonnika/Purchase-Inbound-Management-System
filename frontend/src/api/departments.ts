@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { PageParams, Paginated } from '@/types/pagination'
 import type { AffectedResult } from '@/types/user'
 import type { CreatedResult, Department, DepartmentInput } from '@/types/department'
 
@@ -10,7 +11,7 @@ import type { CreatedResult, Department, DepartmentInput } from '@/types/departm
  * (attached by the client interceptor). Write routes are additionally
  * admin-gated (middleware.Role(RoleAdmin)) on the backend.
  *
- *   GET    /api/departments/selectAll                 -> Department[]
+ *   POST   /api/departments/selectAll       (body {page, page_size} -> {list, total})
  *   GET    /api/departments/selectById?id=<int>       -> Department   (400 id / 404)
  *   GET    /api/departments/selectByName?name=<str>   -> Department   (400 name / 404)
  *   POST   /api/departments/register        (admin)   -> { id }       (JSON: DepartmentInput)
@@ -27,8 +28,11 @@ import type { CreatedResult, Department, DepartmentInput } from '@/types/departm
  * carrying the HTTP status, a stable code, a short reason, and the backend detail.
  */
 export const departmentsApi = {
-  selectAll(): Promise<Department[]> {
-    return apiClient.get<Department[]>('/departments/selectAll').then((res) => res.data)
+  /** Paginated department list. POST `{ page, page_size }` -> `{ list, total }` (id desc). */
+  selectAll(params: PageParams = {}): Promise<Paginated<Department>> {
+    return apiClient
+      .post<Paginated<Department>>('/departments/selectAll', params)
+      .then((res) => res.data)
   },
 
   selectById(id: number): Promise<Department> {

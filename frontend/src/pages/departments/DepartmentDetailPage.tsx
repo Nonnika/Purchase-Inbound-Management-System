@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { departmentsApi } from '@/api/departments'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
 import type { Department } from '@/types/department'
 import { Button } from '@/components/ui/Button/Button'
@@ -41,7 +42,7 @@ export function DepartmentDetailPage() {
     try {
       const [dept, allDepts] = await Promise.all([
         departmentsApi.selectById(departmentId),
-        departmentsApi.selectAll(),
+        fetchAll(departmentsApi.selectAll),
       ])
       setDepartment(dept)
       setAll(allDepts)

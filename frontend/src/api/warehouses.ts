@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { PageParams, Paginated } from '@/types/pagination'
 import type { AffectedResult } from '@/types/user'
 import type { CreatedResult } from '@/types/department'
 import type { Warehouse, WarehouseInput } from '@/types/warehouse'
@@ -11,7 +12,7 @@ import type { Warehouse, WarehouseInput } from '@/types/warehouse'
  * Write routes are admin-gated on the backend.
  *
  *   POST   /api/warehouses/register        (admin) -> { id }       (JSON: WarehouseInput)
- *   GET    /api/warehouses/selectAll                 -> Warehouse[]
+ *   POST   /api/warehouses/selectAll       (body {page, page_size} -> {list, total})
  *   GET    /api/warehouses/selectById?id=            -> Warehouse   (400 id / 404)
  *   GET    /api/warehouses/selectByName?name=        -> Warehouse   (400 name / 404)
  *   DELETE /api/warehouses/deleteById?id=   (admin)  -> { affected }
@@ -25,8 +26,11 @@ import type { Warehouse, WarehouseInput } from '@/types/warehouse'
  * All methods reject with an `ApiError` (see src/api/errors.ts) on failure.
  */
 export const warehousesApi = {
-  selectAll(): Promise<Warehouse[]> {
-    return apiClient.get<Warehouse[]>('/warehouses/selectAll').then((res) => res.data)
+  /** Paginated warehouse list. POST `{ page, page_size }` -> `{ list, total }` (id desc). */
+  selectAll(params: PageParams = {}): Promise<Paginated<Warehouse>> {
+    return apiClient
+      .post<Paginated<Warehouse>>('/warehouses/selectAll', params)
+      .then((res) => res.data)
   },
 
   selectById(id: number): Promise<Warehouse> {
