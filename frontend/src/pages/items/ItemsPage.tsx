@@ -348,8 +348,13 @@ export function ItemsPage() {
               </thead>
               <tbody>
                 {filtered.map((it) => {
-                  const available = it.item_inventory ?? 0
+                  // available = on-hand stock minus what an audit-approved
+                  // outbound order has frozen (orderDao.freezeOutboundInventory).
+                  // Using item_inventory directly here would overstate stock and
+                  // suppress the low-inventory warning below.
+                  const total = it.item_inventory ?? 0
                   const frozen = it.frozen_inventory ?? 0
+                  const available = total - frozen
                   const low = it.warning_level != null && available <= it.warning_level
                   return (
                     <tr key={it.id}>
