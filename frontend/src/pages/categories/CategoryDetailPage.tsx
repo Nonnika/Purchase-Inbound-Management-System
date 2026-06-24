@@ -75,7 +75,7 @@ export function CategoryDetailPage() {
       <div className="container">
         <div className={styles.topbar}>
           <Button variant="ghost" onClick={() => navigate('/categories')}>
-            ← 返回分类列表
+            返回分类列表
           </Button>
         </div>
 

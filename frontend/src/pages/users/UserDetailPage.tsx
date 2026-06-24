@@ -89,7 +89,7 @@ export function UserDetailPage() {
       <div className="container">
         <div className={styles.topbar}>
           <Button variant="ghost" onClick={() => navigate('/users')}>
-            ← 返回用户列表
+            返回用户列表
           </Button>
         </div>
 

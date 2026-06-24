@@ -77,7 +77,7 @@ export function DepartmentDetailPage() {
       <div className="container">
         <div className={styles.topbar}>
           <Button variant="ghost" onClick={() => navigate('/departments')}>
-            ← 返回部门列表
+            返回部门列表
           </Button>
         </div>
 

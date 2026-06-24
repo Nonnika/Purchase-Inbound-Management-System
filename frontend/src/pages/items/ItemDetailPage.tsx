@@ -82,7 +82,7 @@ export function ItemDetailPage() {
       <div className="container">
         <div className={styles.topbar}>
           <Button variant="ghost" onClick={() => navigate('/items')}>
-            ← 返回物品列表
+            返回物品列表
           </Button>
         </div>
 

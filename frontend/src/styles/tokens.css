@@ -71,8 +71,9 @@
   --cds-inverse: var(--gray-100); /* dark chrome: nav, footer */
 
   /* ---- Typography ---- */
-  --font-sans: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'IBM Plex Mono', Menlo, 'Courier New', monospace;
+  /* Latin first (Plex), CJK falls through to 思源黑体 (Noto Sans SC). */
+  --font-sans: 'IBM Plex Sans', 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', Menlo, 'Courier New', monospace;
 
   /* ---- Spacing (8px Carbon 2x grid) ---- */
   --space-01: 2px;

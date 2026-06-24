@@ -15,7 +15,7 @@
 | 语言 | TypeScript（strict 模式） | 5.x |
 | 路由 | react-router-dom | 7.x |
 | HTTP | axios | 1.x |
-| 字体 | IBM Plex Sans / Mono | 经 @fontsource 本地引入 |
+| 字体 | IBM Plex Sans（英文正文）/ 思源黑体 Noto Sans SC（中文）/ JetBrains Mono（数字、代码、技术标签） | 经 @fontsource 本地引入 |
 | 样式方案 | CSS Modules（`*.module.css`） | — |
 
 运行环境要求：Node.js 18+（开发机当前为 Node 24，npm 11）。
@@ -117,7 +117,7 @@ import { usersApi } from '@/api/users'
 - **单一强调色**：IBM Blue 60 `#0f62fe`，所有交互元素、CTA、链接的唯一蓝色。
 - **圆角**：按钮 / 输入 / 卡片一律 0px；标签 24px（pill）；头像 / 图标 50%。这是 Carbon 的身份特征，不要软化。
 - **深度**：通过背景色分层（白 → Gray 10 `#f4f4f4` → Gray 20 `#e0e0e0`）表达层级，**不用阴影**。阴影仅保留给真正浮起的元素（下拉、弹窗、tooltip）—— `Modal` 是仓库里唯一使用阴影的组件。
-- **字体**：IBM Plex Sans（正文）/ IBM Plex Mono（代码、技术标签）。字重仅用 300 / 400 / 600，**禁止 700（bold）**。
+- **字体**：IBM Plex Sans（英文正文）/ 思源黑体 Noto Sans SC（中文，作为 CJK 回退，中文字符自动落到此字体）/ JetBrains Mono（数字、代码、技术标签）。JetBrains Mono 的点状零与 1/l/I 强区分特性提升了 ID、哈希链、价格、库存等数字列的可读性；字重仅用 300 / 400 / 600，**禁止 700（bold）**。数字一律启用 `font-variant-numeric: tabular-nums lining-nums`（已在 `global.css` 的 `body` 全局生效），保证等宽对齐。
 - **字距**：仅在小字号加字距——14px 文本 0.16px，12px caption 0.32px；大号展示文字不加字距。
 - **间距**：8px 基准网格（Carbon 2x grid），所有间距值应为 8 的倍数（2px / 4px 用于微调）。
 - **输入框 / 下拉**：仅底部边框（bottom-border），不要全框包围。
