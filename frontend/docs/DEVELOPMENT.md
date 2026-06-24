@@ -316,13 +316,13 @@ try {
 
 ### 当前资源接口概览（细节见各文件头注释 + 根 `CLAUDE.md` 的 API 契约）
 
-- **users**：`selectAll` / `selectById` / `selectByUserName`（注意查询参数是 `user_name`）/ `deleteById`（DELETE）/ `register`（JSON，后端 bcrypt 哈希）/ 逐字段 `Update*ById`。其中 `UpdatePasswordById` / `UpdateUserNameById` / `UpdateRoleById` 走表单字段（`ctx.PostForm`），`UpdateRealNameById` / `UpdatePhoneById` 走 JSON（空串清空可空字段）。**无 `UpdateDepartmentById`，部门一经注册不可改**。
+- **users**：`selectAll` / `selectById` / `selectByUserName`（注意查询参数是 `user_name`）/ `deleteById`（DELETE）/ `register`（JSON，后端 bcrypt 哈希）/ 逐字段 `Update*ById`。其中 `UpdatePasswordById` / `UpdateUserNameById` / `UpdateRoleById` / `UpdateDepartmentById` 走表单字段（`ctx.PostForm`），`UpdateRealNameById` / `UpdatePhoneById` 走 JSON（空串清空可空字段）。`updateDepartmentById` 现已存在——部门在注册后可改（前端 `UsersPage` 编辑 Modal 已解锁该字段）。
 - **roles**：只读 `selectAll` / `selectById` / `selectByName` / `selectByCode`。
 - **departments**：树形 CRUD，`register` / `selectAll` / `selectById` / `selectByName` / `deleteById` / `UpdateNameById` / `UpdateDescriptionById` / `UpdateParentById`（树结构靠 `parent`）。
-- **items**：`selectAll` / `selectById` / `create`（JSON）。无 update/delete。
+- **items**：`selectAll` / `selectById` / `create`（JSON，purchaser/admin）/ `update?id=`（JSON，部分更新——`ItemUpdate` 全为可选指针，仅发送变更字段；manager = admin/warehouse/auditor 门控）/ `delete?id=`（DELETE，manager）。服务端校验 `item_inventory≥0`、`frozen_inventory≥0`、`frozen_inventory≤item_inventory`、`name` 非空。`ItemsPage` 的创建/编辑共用 lift 出来的 `ItemFormFields` 表单体，编辑按字段 diff 调 `update`。
 - **itemCategories**：树形 CRUD，同 departments 模式。**路由前缀是 camelCase `itemCategories`**（不是 `item_categories`）。时间戳序列化为 `created_at`。
 - **warehouses**：扁平 CRUD。**时间戳序列化为 `create_at`**（后端 model 字段 `CreateAt`），前端类型用 `create_at`。
-- **orders**：角色门控的哈希链流程。创建 / 追加端点接受可选 `event_payload`（前端发送 `{ note }`）。`purchaseRequests` / `outboundRequests` / `auditApprove` / `auditReject` / `warehouseReceive` / `warehouseShip` / `selectAll` / `selectById` / `selectByUserId` / `events` / `verifyChain`。
+- **orders**：角色门控的哈希链流程。创建 / 追加端点接受可选 `event_payload`（前端发送 `{ note }`）。`purchaseRequests` / `outboundRequests` / `auditApprove` / `auditReject` / `warehouseReceive` / `warehouseShip` / `selectAll` / `selectById` / `selectByUserId` / `events` / `verifyChain` / `delete?id=`（DELETE，软删除——向链上追加 `ORDER_DELETED` 事件；admin 或订单所属用户可执行；删除 `AUDIT_APPROVED` 的出库单会释放其冻结库存）。
 
 ---
 
