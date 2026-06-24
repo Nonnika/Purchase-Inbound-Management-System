@@ -35,16 +35,21 @@ func NewUserController(dao *dao.UserDao, jwtMgr *jwt.JManager) *UserController {
 }
 
 func (u *UserController) SelectAll(ctx *gin.Context) {
-	rows, err := u.dao.SelectAll()
+	var req pageRequest
+	if !bindPageRequest(ctx, &req) {
+		return
+	}
+
+	rows, total, err := u.dao.SelectPage(req.Page, req.PageSize)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
+		return
 	}
 
-	ctx.JSON(http.StatusOK, rows)
-
+	respondPage(ctx, rows, total)
 }
 
 func (u *UserController) SelectById(ctx *gin.Context) {
@@ -611,13 +616,95 @@ func (u *UserController) update(ctx *gin.Context, user *model.User) {
 	})
 }
 
+type updateMyPasswordRequest struct {
+	OldPassword string `json:"old_password" form:"old_password"`
+	NewPassword string `json:"new_password" form:"new_password"`
+}
+
+func (u *UserController) UpdateMyPassword(ctx *gin.Context) {
+	var req updateMyPasswordRequest
+	if err := ctx.ShouldBind(&req); err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	if req.NewPassword == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "new_password is empty",
+		})
+		return
+	}
+
+	userId := currentUserId(ctx)
+	if userId == 0 {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"error": "user is not authenticated",
+		})
+		return
+	}
+
+	user, err := u.dao.SelectById(int(userId))
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "user is not exist",
+		})
+		return
+	}
+	if user.Status != model.UserStatusNormal {
+		ctx.JSON(http.StatusForbidden, gin.H{
+			"error": "user is disabled",
+		})
+		return
+	}
+
+	// 非管理员修改自己的密码需要校验旧密码
+	if !isAdmin(ctx) && !encode.CompareHashAndPassword(user.PasswordHash, req.OldPassword) {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"error": "old_password is wrong",
+		})
+		return
+	}
+
+	passwordHash, err := encode.EncodePasswd(req.NewPassword)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	affected, err := u.dao.UpdatePasswordById(int(userId), passwordHash)
+	if err != nil {
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	if affected == 0 {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"error": "user is not exist",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"affected": affected,
+	})
+}
+
 func (u *UserController) RegisterRouter(r *gin.RouterGroup) {
 	r.POST("/users/verify", u.VerifyPassword)
 }
 func (u *UserController) RegisterAuthRouter(r *gin.RouterGroup) {
 	admin := middleware.Role(model.RoleAdmin)
 	r.POST("/users/register", admin, u.Register)
-	r.GET("/users/selectAll", admin, u.SelectAll)
+	r.POST("/users/selectAll", admin, u.SelectAll)
 	r.GET("/users/selectById", admin, u.SelectById)
 	r.GET("/users/selectByUserName", admin, u.SelectByUserName)
 	r.DELETE("/users/deleteById", admin, u.DeleteById)
@@ -629,4 +716,5 @@ func (u *UserController) RegisterAuthRouter(r *gin.RouterGroup) {
 	r.POST("/users/UpdatePhoneById", admin, u.UpdatePhoneById)
 	r.POST("/users/blockById", admin, u.BlockById)
 	r.POST("/users/unblockById", admin, u.UnblockById)
+	r.POST("/users/updateMyPassword", u.UpdateMyPassword)
 }

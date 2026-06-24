@@ -86,6 +86,21 @@ func (o *OrderDao) SelectAll() ([]model.Order, error) {
 	return orders, err
 }
 
+func (o *OrderDao) SelectPage(page, pageSize int64) ([]model.Order, int64, error) {
+	orders := make([]model.Order, 0)
+	err := o.DB.Select(&orders, "select id,item_id,user_id,count,order_type,status,created_at,updated_at from orders order by created_at desc limit ? offset ?", pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int64
+	if err := o.DB.Get(&total, "select count(*) from orders"); err != nil {
+		return nil, 0, err
+	}
+
+	return orders, total, nil
+}
+
 func (o *OrderDao) SelectById(id int64) (*model.Order, error) {
 	var order model.Order
 	err := o.DB.Get(&order, "select id,item_id,user_id,count,order_type,status,created_at,updated_at from orders where id = ?", id)

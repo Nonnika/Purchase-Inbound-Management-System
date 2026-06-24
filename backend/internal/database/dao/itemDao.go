@@ -21,6 +21,26 @@ func (i *ItemDao) SelectAll() ([]model.Item, error) {
 	return items, err
 }
 
+func (i *ItemDao) SelectPage(page, pageSize int64) ([]model.Item, int64, error) {
+	items := make([]model.Item, 0)
+	err := i.DB.Select(&items, `
+		select id,name,category_id,price,item_inventory,frozen_inventory,warehouse_id,warning_level,created_at,updated_at
+		from items
+		order by id desc
+		limit ? offset ?
+	`, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int64
+	if err := i.DB.Get(&total, "select count(*) from items"); err != nil {
+		return nil, 0, err
+	}
+
+	return items, total, nil
+}
+
 func (i *ItemDao) SelectById(id int64) (*model.Item, error) {
 	var item model.Item
 	err := i.DB.Get(&item, `

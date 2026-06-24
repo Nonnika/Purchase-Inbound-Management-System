@@ -21,7 +21,12 @@ func NewRoleController(dao *dao.RoleDao) *RoleController {
 }
 
 func (r *RoleController) SelectAll(ctx *gin.Context) {
-	rows, err := r.dao.SelectAll()
+	var req pageRequest
+	if !bindPageRequest(ctx, &req) {
+		return
+	}
+
+	rows, total, err := r.dao.SelectPage(req.Page, req.PageSize)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -30,7 +35,7 @@ func (r *RoleController) SelectAll(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, rows)
+	respondPage(ctx, rows, total)
 }
 
 func (r *RoleController) SelectById(ctx *gin.Context) {
@@ -121,7 +126,7 @@ func (r *RoleController) SelectByCode(ctx *gin.Context) {
 }
 
 func (r *RoleController) RegisterAuthRouter(router *gin.RouterGroup) {
-	router.GET("/roles/selectAll", r.SelectAll)
+	router.POST("/roles/selectAll", r.SelectAll)
 	router.GET("/roles/selectById", r.SelectById)
 	router.GET("/roles/selectByName", r.SelectByName)
 	router.GET("/roles/selectByCode", r.SelectByCode)

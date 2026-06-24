@@ -29,7 +29,12 @@ func NewItemCategoriesController(dao *dao.ItemCategoriesDao) *ItemCategoriesCont
 }
 
 func (c *ItemCategoriesController) SelectAll(ctx *gin.Context) {
-	rows, err := c.dao.SelectAll()
+	var req pageRequest
+	if !bindPageRequest(ctx, &req) {
+		return
+	}
+
+	rows, total, err := c.dao.SelectPage(req.Page, req.PageSize)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -38,7 +43,7 @@ func (c *ItemCategoriesController) SelectAll(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, rows)
+	respondPage(ctx, rows, total)
 }
 
 func (c *ItemCategoriesController) SelectById(ctx *gin.Context) {
@@ -299,7 +304,7 @@ func (c *ItemCategoriesController) RegisterAuthRouter(r *gin.RouterGroup) {
 	admin := middleware.Role(model.RoleAdmin)
 
 	r.POST("/itemCategories/register", admin, c.Insert)
-	r.GET("/itemCategories/selectAll", c.SelectAll)
+	r.POST("/itemCategories/selectAll", c.SelectAll)
 	r.GET("/itemCategories/selectById", c.SelectById)
 	r.GET("/itemCategories/selectByName", c.SelectByName)
 	r.DELETE("/itemCategories/deleteById", admin, c.DeleteById)
