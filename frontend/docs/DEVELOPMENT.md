@@ -238,7 +238,7 @@ import { Tag } from '@/components/ui/Tag/Tag'
 | 路径 | 页面 | 说明 |
 |------|------|------|
 | `/login` | LoginPage | 登录（公开） |
-| `/` | HomePage | 概览 + 组件预览 |
+| `/` | HomePage | 控制台（KPI + 订单状态分布 + 快捷入口，数据来自 `GET /overview/summary`） |
 | `/users` | UsersPage | 用户 CRUD |
 | `/roles` | RolesPage | 角色列表（只读） |
 | `/departments` | DepartmentsPage | 部门树 CRUD |
@@ -337,6 +337,7 @@ try {
 - **itemCategories**：树形 CRUD，同 departments 模式。**路由前缀是 camelCase `itemCategories`**（不是 `item_categories`）。时间戳序列化为 `created_at`。
 - **warehouses**：扁平 CRUD。**时间戳序列化为 `create_at`**（后端 model 字段 `CreateAt`），前端类型用 `create_at`。
 - **orders**：角色门控的哈希链流程。创建 / 追加端点接受可选 `event_payload`（前端发送 `{ note }`）。`purchaseRequests` / `outboundRequests` / `auditApprove` / `auditReject` / `warehouseReceive` / `warehouseShip` / `selectAll` / `selectById` / `selectByUserId` / `events` / `verifyChain` / `delete?id=`（DELETE，软删除——向链上追加 `ORDER_DELETED` 事件；admin 或订单所属用户可执行；删除 `AUDIT_APPROVED` 的出库单会释放其冻结库存）。
+- **overview**：`GET /overview/summary` → `OverviewSummary`（`types/overview.ts`），返回物品总数 / 库存不足 / 各订单状态计数。注册在 auth 组、不限角色，`HomePage` 控制台据此渲染 KPI 与订单状态分布。
 
 ---
 

@@ -97,6 +97,12 @@
   letter-spacing: 0;
 }
 
+.largeLabel {
+  font-size: 1.25rem;
+  font-weight: 600;  
+  color: var(--cds-text-primary);
+}
+
 /* Secondary line under a stat value (e.g. the raw counts behind a ratio). */
 .statSub {
   margin-top: var(--space-02);

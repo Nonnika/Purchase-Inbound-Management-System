@@ -1,85 +1,247 @@
-.hero {
-  padding-block: var(--space-11) var(--space-10);
-  background: var(--cds-background);
-}
+/* HomePage — operational console.
+ * Carbon: 0px radius, background-color layering (no shadows), single Blue 60
+ * accent, Plex Sans light display + mono numerics, 8px grid. Hairline tile
+ * grids use a 1px gap over a border-colored backdrop (the Carbon tile pattern).
+ */
 
-.heroTitle {
-  font-size: 60px;
-  font-weight: 300;
-  line-height: 1.17;
-  color: var(--cds-text-primary);
-  margin-bottom: var(--space-05);
-  max-width: 800px;
-}
-
-.heroSubtitle {
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--cds-text-secondary);
-  max-width: 640px;
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-05);
+  flex-wrap: wrap;
   margin-bottom: var(--space-07);
 }
 
-.heroButtons {
-  display: flex;
-  gap: var(--space-05);
-  flex-wrap: wrap;
-}
-.heroButtons a {
-  text-decoration: none;
+.title {
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+  margin-top: var(--space-02);
 }
 
-/* Cards */
-.cardGrid {
+.subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-03);
+  margin-top: var(--space-03);
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+.dot {
+  color: var(--gray-50);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-05);
+}
+
+.updatedAt {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gray-60);
+  letter-spacing: 0.32px;
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+/* ---- KPI tiles ---- */
+/* 1px gap over a border-tile backdrop produces the hairline grid; each tile is
+   a flat layer-01 surface (highlighted = blue-10, warn = red value text). */
+.kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1px;
   background: var(--cds-border-tile);
+  margin-bottom: var(--space-07);
 }
 
-.card {
+.kpi {
   background: var(--cds-layer-01);
   padding: var(--space-05);
-  cursor: default;
-  transition: background-color 0.15s ease;
-}
-.card:hover {
-  background: var(--cds-layer-01-hover);
 }
 
-.cardTitle {
+.kpiHighlight {
+  background: var(--blue-10);
+}
+
+.kpiLabel {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.32px;
+  margin-bottom: var(--space-03);
+}
+
+.kpiValue {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0;
+  color: var(--cds-text-primary);
+}
+
+.kpiWarn .kpiValue {
+  color: var(--cds-support-error);
+}
+
+.kpiSub {
+  margin-top: var(--space-03);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+/* ---- Panels (status distribution / shortcuts) ---- */
+.panel {
+  background: var(--cds-layer-01);
+  padding: var(--space-05);
+  margin-bottom: var(--space-07);
+}
+
+.panelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-05);
+  margin-bottom: var(--space-05);
+}
+
+.panelTitle {
   font-size: 20px;
   font-weight: 600;
   line-height: 1.4;
-  margin-block: var(--space-03) var(--space-02);
 }
 
-.cardBody {
+.panelMeta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+/* ---- Status distribution rows ---- */
+.statusList {
+  display: flex;
+  flex-direction: column;
+}
+
+.statusRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr 64px;
+  align-items: center;
+  gap: var(--space-05);
+  padding: var(--space-04) 0;
+  border-bottom: 1px solid var(--cds-border-tile);
+}
+.statusRow:last-child {
+  border-bottom: none;
+}
+
+.statusLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-03);
+  flex-wrap: wrap;
+}
+
+.statusHint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gray-60);
+  letter-spacing: 0.16px;
+}
+
+.bar {
+  position: relative;
+  height: 8px;
+  background: var(--cds-layer-02);
+}
+
+.barFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  transition: width 0.2s ease;
+}
+
+.statusCount {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--cds-text-primary);
+}
+
+/* ---- Shortcut tiles ---- */
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1px;
+  background: var(--cds-border-tile);
+  margin: calc(var(--space-05) * -1);
+  margin-top: 0;
+}
+
+.shortcut {
+  position: relative;
+  display: block;
+  background: var(--cds-background);
+  padding: var(--space-05);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.15s ease;
+}
+.shortcut:hover {
+  background: var(--cds-layer-01-hover);
+  text-decoration: none;
+}
+
+.shortcutTitle {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: var(--space-03);
+}
+
+.shortcutDesc {
   font-size: 14px;
   color: var(--cds-text-secondary);
   line-height: 1.29;
   letter-spacing: 0.16px;
+  margin-top: var(--space-02);
 }
 
-/* Component rows */
-.buttonRow {
-  display: flex;
-  gap: var(--space-05);
-  flex-wrap: wrap;
-  align-items: center;
-  margin-bottom: var(--space-06);
+.shortcutArrow {
+  position: absolute;
+  right: var(--space-05);
+  bottom: var(--space-05);
+  font-family: var(--font-mono);
+  color: var(--cds-link-primary);
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
-
-.tagRow {
-  display: flex;
-  gap: var(--space-03);
-  flex-wrap: wrap;
-  align-items: center;
+.shortcut:hover .shortcutArrow {
+  opacity: 1;
 }
 
 @media (max-width: 672px) {
-  .heroTitle {
-    font-size: 42px;
+  .statusRow {
+    grid-template-columns: 1fr 48px;
+  }
+  .bar {
+    grid-column: 1 / -1;
+    margin-top: var(--space-02);
   }
 }

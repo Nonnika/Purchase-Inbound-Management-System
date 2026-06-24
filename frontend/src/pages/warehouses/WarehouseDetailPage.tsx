@@ -148,7 +148,7 @@ export function WarehouseDetailPage() {
           <>
             {/* Inventory total value — full-width highlight tile, above the grid */}
             <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
-              <div className={styles.statLabel}>库存总值</div>
+              <div className={`${styles.statLabel} ${styles.largeLabel}`}>库存总值</div>
               <div className={styles.valueTileFigure}>{formatCurrency(stats.totalValue)}</div>
             </div>
 
