@@ -80,6 +80,17 @@ export const usersApi = {
   },
 
   /**
+   * POST /users/UpdateDepartmentById?id=  (form field: department_id) -> { affected }.
+   * The backend reads `department_id` via ctx.PostForm, so it must be
+   * form-encoded (like the other three ctx.PostForm user updates).
+   */
+  updateDepartmentById(id: number, departmentId: number): Promise<AffectedResult> {
+    return postUserFormFields('/users/UpdateDepartmentById', id, {
+      department_id: String(departmentId),
+    })
+  },
+
+  /**
    * POST /users/UpdateRealNameById?id=  (JSON: { real_name }) -> { affected }.
    * The backend binds `real_name` (*string) via ShouldBind and normalizes an
    * empty string to nil, so passing '' clears the field.
