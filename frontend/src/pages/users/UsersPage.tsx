@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/api/users'
 import { rolesApi } from '@/api/roles'
 import { departmentsApi } from '@/api/departments'
+import { getCurrentUser } from '@/api/auth'
 import { ApiError, toApiError } from '@/api/errors'
 import type { User, UserInput } from '@/types/user'
 import { USER_STATUS } from '@/types/user'
@@ -159,6 +160,36 @@ export function UsersPage() {
     setActionError(null)
     try {
       await usersApi.deleteById(user.id)
+      if (searchResult?.id === user.id) exitSearch()
+      else void loadAll()
+    } catch (err) {
+      setActionError(toApiError(err))
+    }
+  }
+
+  const handleToggleBlock = async (user: User) => {
+    const current = getCurrentUser()
+    if (current?.id === user.id) {
+      setActionError(
+        new ApiError({
+          code: 'BAD_REQUEST',
+          status: null,
+          reason: '请求参数有误',
+          detail: '不能封禁/解封当前登录的账号',
+        }),
+      )
+      return
+    }
+    const isBlocked = user.status === USER_STATUS.DISABLED
+    const verb = isBlocked ? '解封' : '封禁'
+    if (!window.confirm(`确认${verb}用户「${user.real_name || user.username}」(id=${user.id})？`)) return
+    setActionError(null)
+    try {
+      if (isBlocked) {
+        await usersApi.unblockById(user.id)
+      } else {
+        await usersApi.blockById(user.id)
+      }
       if (searchResult?.id === user.id) exitSearch()
       else void loadAll()
     } catch (err) {
@@ -363,6 +394,7 @@ export function UsersPage() {
               deptName={deptName}
               onEdit={openEdit}
               onDelete={handleDelete}
+              onToggleBlock={handleToggleBlock}
             />
           ) : (
             <p className={styles.muted}>未找到用户名为「{searchTerm}」的用户。</p>
@@ -388,6 +420,7 @@ export function UsersPage() {
             deptName={deptName}
             onEdit={openEdit}
             onDelete={handleDelete}
+            onToggleBlock={handleToggleBlock}
           />
         )}
       </div>
@@ -561,9 +594,10 @@ interface UserTableProps {
   deptName: Map<number, string>
   onEdit: (user: User) => void
   onDelete: (user: User) => void
+  onToggleBlock: (user: User) => void
 }
 
-function UserTable({ users, roleName, deptName, onEdit, onDelete }: UserTableProps) {
+function UserTable({ users, roleName, deptName, onEdit, onDelete, onToggleBlock }: UserTableProps) {
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
@@ -598,6 +632,12 @@ function UserTable({ users, roleName, deptName, onEdit, onDelete }: UserTablePro
               <td className={styles.actionCol}>
                 <Button variant="ghost" onClick={() => onEdit(u)}>
                   编辑
+                </Button>
+                <Button
+                  variant={u.status === USER_STATUS.DISABLED ? 'secondary' : 'ghost'}
+                  onClick={() => onToggleBlock(u)}
+                >
+                  {u.status === USER_STATUS.DISABLED ? '启用' : '禁用'}
                 </Button>
                 <Button variant="danger" onClick={() => onDelete(u)}>
                   删除

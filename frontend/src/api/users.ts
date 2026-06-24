@@ -15,6 +15,8 @@ import type { AffectedResult, User, UserInput } from '@/types/user'
  *   POST   /api/users/UpdateRoleById?id=<int>                -> { affected }  (form field: role_id)
  *   POST   /api/users/UpdateRealNameById?id=<int>            -> { affected }  (JSON/ form: real_name)
  *   POST   /api/users/UpdatePhoneById?id=<int>               -> { affected }  (JSON/ form: phone)
+ *   POST   /api/users/blockById?id=<int>                     -> { affected }  (no body; status -> 0)
+ *   POST   /api/users/unblockById?id=<int>                   -> { affected }  (no body; status -> 1)
  *
  * Login is handled separately in src/api/auth.ts (POST /users/verify, public).
  *
@@ -108,6 +110,24 @@ export const usersApi = {
   updatePhoneById(id: number, phone: string): Promise<AffectedResult> {
     return apiClient
       .post<AffectedResult>('/users/UpdatePhoneById', { phone }, { params: { id } })
+      .then((res) => res.data)
+  },
+
+  /**
+   * POST /users/blockById?id=  (no body) -> { affected }. Sets status to 0
+   * (blocked). The backend reads only the `id` query param. A blocked user is
+   * refused at /users/verify with 403 `user is disabled`.
+   */
+  blockById(id: number): Promise<AffectedResult> {
+    return apiClient
+      .post<AffectedResult>('/users/blockById', undefined, { params: { id } })
+      .then((res) => res.data)
+  },
+
+  /** POST /users/unblockById?id=  (no body) -> { affected }. Sets status to 1 (normal). */
+  unblockById(id: number): Promise<AffectedResult> {
+    return apiClient
+      .post<AffectedResult>('/users/unblockById', undefined, { params: { id } })
       .then((res) => res.data)
   },
 }
