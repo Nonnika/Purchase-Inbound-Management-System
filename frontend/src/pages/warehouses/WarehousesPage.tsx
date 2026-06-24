@@ -38,8 +38,8 @@ export function WarehousesPage() {
   const [loadError, setLoadError] = useState<ApiError | null>(null)
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
-  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
-  const [pendingDelete, setPendingDelete] = useState<Warehouse | null>(null)
+  // delete confirmation — lives inside the edit modal's footer (left side)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   // client-side name search (no selectByName list variant; selectByName returns one)
@@ -153,29 +153,31 @@ export function WarehousesPage() {
     }
   }
 
-  const handleDelete = (w: Warehouse) => {
-    setActionError(null)
-    setPendingDelete(w)
-  }
-
-  const confirmDelete = async () => {
-    if (!pendingDelete) return
-    setDeleting(true)
-    try {
-      await warehousesApi.deleteById(pendingDelete.id)
-      if (editing?.id === pendingDelete.id) closeEdit()
-      setPendingDelete(null)
-      void loadAll()
-    } catch (err) {
-      setActionError(toApiError(err))
-    } finally {
-      setDeleting(false)
-    }
-  }
-
   /** Open the dedicated warehouse detail route (`/warehouses/:id`). */
   const openDetail = (w: Warehouse) => {
     navigate(`/warehouses/${w.id}`)
+  }
+
+  // Delete from within the edit modal — confirm, then remove + close + reload.
+  const requestDelete = () => {
+    setActionError(null)
+    setConfirmDeleteOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!editing) return
+    setDeleting(true)
+    try {
+      await warehousesApi.deleteById(editing.id)
+      setConfirmDeleteOpen(false)
+      closeEdit()
+      void loadAll()
+    } catch (err) {
+      setActionError(toApiError(err))
+      setConfirmDeleteOpen(false)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -265,11 +267,6 @@ export function WarehousesPage() {
                           编辑
                         </Button>
                       )}
-                      {canManage && (
-                        <Button variant="danger" onClick={() => handleDelete(w)}>
-                          删除
-                        </Button>
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -321,10 +318,18 @@ export function WarehousesPage() {
         closeOnEscape={false}
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+            <Button
+              variant="danger"
+              style={{ marginRight: 'auto' }}
+              onClick={requestDelete}
+              disabled={submitting || deleting}
+            >
+              删除
+            </Button>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting || deleting}>
               取消
             </Button>
-            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting || deleting}>
               {submitting ? '保存中…' : '保存'}
             </Button>
           </>
@@ -345,21 +350,21 @@ export function WarehousesPage() {
         {editError && <ErrorBanner error={editError} prefix="保存失败" />}
       </Modal>
 
-      {/* Delete confirmation — destructive, explicit action */}
+      {/* Delete confirmation — triggered from the edit modal */}
       <ConfirmDialog
-        open={pendingDelete !== null}
+        open={confirmDeleteOpen}
         title="删除仓库"
         description={
           <>
-            确认删除仓库 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
-            （id={pendingDelete?.id}）？该操作不可撤销。
+            确认删除仓库 <span className="confirmHighlight">「{editing?.name}」</span>
+            （id={editing?.id}）？该操作不可撤销。
           </>
         }
         confirmLabel="删除"
         tone="danger"
         busy={deleting}
         onConfirm={() => void confirmDelete()}
-        onCancel={() => setPendingDelete(null)}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </section>
   )

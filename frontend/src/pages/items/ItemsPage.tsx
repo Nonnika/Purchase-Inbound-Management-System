@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { itemsApi } from '@/api/items'
 import { warehousesApi } from '@/api/warehouses'
 import { itemCategoriesApi } from '@/api/itemCategories'
@@ -38,6 +39,7 @@ const emptyForm: ItemInput = {
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function ItemsPage() {
+  const navigate = useNavigate()
   const user = getCurrentUser()
   const roleId = user?.role_id ?? 0
   const canCreate = roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.PURCHASER
@@ -79,8 +81,8 @@ export function ItemsPage() {
   // transient action error (e.g. delete) shown inline above the table
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
-  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
-  const [pendingDelete, setPendingDelete] = useState<Item | null>(null)
+  // delete confirmation — triggered from the edit modal's footer
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   const loadAll = useCallback(async () => {
@@ -266,20 +268,23 @@ export function ItemsPage() {
     }
   }
 
-  const handleDelete = (item: Item) => {
+  // Delete from within the edit modal — confirm, then remove + close + reload.
+  const requestDelete = () => {
     setActionError(null)
-    setPendingDelete(item)
+    setConfirmDeleteOpen(true)
   }
 
   const confirmDelete = async () => {
-    if (!pendingDelete) return
+    if (!editing) return
     setDeleting(true)
     try {
-      await itemsApi.delete(pendingDelete.id)
-      setPendingDelete(null)
+      await itemsApi.delete(editing.id)
+      setConfirmDeleteOpen(false)
+      closeEdit()
       void loadAll()
     } catch (err) {
       setActionError(toApiError(err))
+      setConfirmDeleteOpen(false)
     } finally {
       setDeleting(false)
     }
@@ -356,7 +361,7 @@ export function ItemsPage() {
                   <th>仓库</th>
                   <th>预警阈值</th>
                   <th>创建时间</th>
-                  {canManage && <th>操作</th>}
+                  <th className={styles.actionCol}>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -401,16 +406,16 @@ export function ItemsPage() {
                         )}
                       </td>
                       <td className={styles.mono}>{formatTime(it.created_at)}</td>
-                      {canManage && (
-                        <td>
+                      <td className={styles.actionCol}>
+                        <Button variant="ghost" onClick={() => navigate(`/items/${it.id}`)}>
+                          详情
+                        </Button>
+                        {canManage && (
                           <Button variant="ghost" onClick={() => openEdit(it)}>
                             编辑
                           </Button>
-                          <Button variant="danger" onClick={() => handleDelete(it)}>
-                            删除
-                          </Button>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -458,10 +463,18 @@ export function ItemsPage() {
         closeOnEscape={false}
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+            <Button
+              variant="danger"
+              style={{ marginRight: 'auto' }}
+              onClick={requestDelete}
+              disabled={submitting || deleting}
+            >
+              删除
+            </Button>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting || deleting}>
               取消
             </Button>
-            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting || deleting}>
               {submitting ? '保存中…' : '保存'}
             </Button>
           </>
@@ -478,21 +491,21 @@ export function ItemsPage() {
         />
       </Modal>
 
-      {/* Delete confirmation — destructive, explicit action */}
+      {/* Delete confirmation — triggered from the edit modal */}
       <ConfirmDialog
-        open={pendingDelete !== null}
+        open={confirmDeleteOpen}
         title="删除物品"
         description={
           <>
-            确认删除物品 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
-            （id={pendingDelete?.id}）？该操作不可撤销。
+            确认删除物品 <span className="confirmHighlight">「{editing?.name}」</span>
+            （id={editing?.id}）？该操作不可撤销。
           </>
         }
         confirmLabel="删除"
         tone="danger"
         busy={deleting}
         onConfirm={() => void confirmDelete()}
-        onCancel={() => setPendingDelete(null)}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </section>
   )

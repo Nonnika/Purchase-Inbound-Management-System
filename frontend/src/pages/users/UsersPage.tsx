@@ -90,12 +90,9 @@ export function UsersPage() {
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
   // destructive-action confirmation — native confirm replaced with a Carbon
-  // ConfirmDialog. One pending slot covers both delete and block/unblock.
-  const [pending, setPending] = useState<
-    | { kind: 'delete'; user: User }
-    | { kind: 'toggleBlock'; user: User }
-    | null
-  >(null)
+  // ConfirmDialog. The pending slot covers block/unblock only; delete lives on
+  // the user detail page's danger zone now.
+  const [pending, setPending] = useState<{ kind: 'toggleBlock'; user: User } | null>(null)
   const [confirming, setConfirming] = useState(false)
 
   // create modal
@@ -110,6 +107,10 @@ export function UsersPage() {
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [editError, setEditError] = useState<ApiError | null>(null)
   const [editPhoneError, setEditPhoneError] = useState<string | null>(null)
+
+  // delete confirmation — triggered from the edit modal's footer
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const loadAll = useCallback(async () => {
     setState('loading')
@@ -165,11 +166,6 @@ export function UsersPage() {
     }
   }
 
-  const handleDelete = (user: User) => {
-    setActionError(null)
-    setPending({ kind: 'delete', user })
-  }
-
   const handleToggleBlock = (user: User) => {
     const current = getCurrentUser()
     if (current?.id === user.id) {
@@ -191,9 +187,7 @@ export function UsersPage() {
     if (!pending) return
     setConfirming(true)
     try {
-      if (pending.kind === 'delete') {
-        await usersApi.deleteById(pending.user.id)
-      } else if (pending.user.status === USER_STATUS.DISABLED) {
+      if (pending.user.status === USER_STATUS.DISABLED) {
         await usersApi.unblockById(pending.user.id)
       } else {
         await usersApi.blockById(pending.user.id)
@@ -277,6 +271,33 @@ export function UsersPage() {
     setEditForm(null)
     setEditError(null)
     setEditPhoneError(null)
+  }
+
+  // Delete from within the edit modal — confirm, then remove + close + reload.
+  // Self-delete is blocked (an admin can't delete the account they're logged in as).
+  const isEditingSelf = editing != null && getCurrentUser()?.id === editing.id
+
+  const requestDelete = () => {
+    if (!editing || isEditingSelf) return
+    setActionError(null)
+    setConfirmDeleteOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!editing) return
+    setDeleting(true)
+    try {
+      await usersApi.deleteById(editing.id)
+      setConfirmDeleteOpen(false)
+      closeEdit()
+      if (searchResult?.id === editing.id) exitSearch()
+      else void loadAll()
+    } catch (err) {
+      setActionError(toApiError(err))
+      setConfirmDeleteOpen(false)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const updateEditField = <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
@@ -404,7 +425,6 @@ export function UsersPage() {
               roleName={roleName}
               deptName={deptName}
               onEdit={openEdit}
-              onDelete={handleDelete}
               onToggleBlock={handleToggleBlock}
             />
           ) : (
@@ -430,7 +450,6 @@ export function UsersPage() {
             roleName={roleName}
             deptName={deptName}
             onEdit={openEdit}
-            onDelete={handleDelete}
             onToggleBlock={handleToggleBlock}
           />
         )}
@@ -521,10 +540,19 @@ export function UsersPage() {
         closeOnEscape={false}
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+            <Button
+              variant="danger"
+              style={{ marginRight: 'auto' }}
+              onClick={requestDelete}
+              disabled={submitting || deleting || isEditingSelf}
+              title={isEditingSelf ? '不能删除当前登录的账号' : undefined}
+            >
+              删除
+            </Button>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting || deleting}>
               取消
             </Button>
-            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting || deleting}>
               {submitting ? '保存中…' : '保存'}
             </Button>
           </>
@@ -596,50 +624,43 @@ export function UsersPage() {
         )}
       </Modal>
 
-      {/* Destructive-action confirmation — delete or block/unblock */}
+      {/* Block/unblock confirmation — delete lives in the edit modal */}
       <ConfirmDialog
         open={pending !== null}
-        title={
-          pending?.kind === 'delete'
-            ? '删除用户'
-            : pending && pending.user.status === USER_STATUS.DISABLED
-              ? '解封用户'
-              : '封禁用户'
-        }
+        title={pending && pending.user.status === USER_STATUS.DISABLED ? '解封用户' : '封禁用户'}
         description={
           <>
-            {pending?.kind === 'delete' ? (
-              <>
-                确认删除用户 <span className="confirmHighlight">「{pending.user.real_name || pending.user.username}」</span>
-                （id={pending.user.id}）？该操作不可撤销。
-              </>
-            ) : (
-              <>
-                确认{pending && pending.user.status === USER_STATUS.DISABLED ? '解封' : '封禁'}用户{' '}
-                <span className="confirmHighlight">「{pending?.user.real_name || pending?.user.username}」</span>
-                （id={pending?.user.id}）？
-                {pending && pending.user.status !== USER_STATUS.DISABLED && (
-                  <span className="confirmNote">封禁后该用户将无法登录系统。</span>
-                )}
-              </>
+            确认{pending && pending.user.status === USER_STATUS.DISABLED ? '解封' : '封禁'}用户{' '}
+            <span className="confirmHighlight">「{pending?.user.real_name || pending?.user.username}」</span>
+            （id={pending?.user.id}）？
+            {pending && pending.user.status !== USER_STATUS.DISABLED && (
+              <span className="confirmNote">封禁后该用户将无法登录系统。</span>
             )}
           </>
         }
-        confirmLabel={
-          pending?.kind === 'delete'
-            ? '删除'
-            : pending && pending.user.status === USER_STATUS.DISABLED
-              ? '解封'
-              : '封禁'
-        }
-        tone={
-          pending?.kind === 'delete' || (pending && pending.user.status !== USER_STATUS.DISABLED)
-            ? 'danger'
-            : 'primary'
-        }
+        confirmLabel={pending && pending.user.status === USER_STATUS.DISABLED ? '解封' : '封禁'}
+        tone={pending && pending.user.status !== USER_STATUS.DISABLED ? 'danger' : 'primary'}
         busy={confirming}
         onConfirm={() => void confirmPending()}
         onCancel={() => setPending(null)}
+      />
+
+      {/* Delete confirmation — triggered from the edit modal */}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="删除用户"
+        description={
+          <>
+            确认删除用户{' '}
+            <span className="confirmHighlight">「{editing?.real_name || editing?.username}」</span>
+            （id={editing?.id}）？该操作不可撤销。
+          </>
+        }
+        confirmLabel="删除"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </section>
   )
@@ -650,11 +671,11 @@ interface UserTableProps {
   roleName: Map<number, string>
   deptName: Map<number, string>
   onEdit: (user: User) => void
-  onDelete: (user: User) => void
   onToggleBlock: (user: User) => void
 }
 
-function UserTable({ users, roleName, deptName, onEdit, onDelete, onToggleBlock }: UserTableProps) {
+function UserTable({ users, roleName, deptName, onEdit, onToggleBlock }: UserTableProps) {
+  const navigate = useNavigate()
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
@@ -687,6 +708,9 @@ function UserTable({ users, roleName, deptName, onEdit, onDelete, onToggleBlock 
                 )}
               </td>
               <td className={styles.actionCol}>
+                <Button variant="ghost" onClick={() => navigate(`/users/${u.id}`)}>
+                  详情
+                </Button>
                 <Button variant="ghost" onClick={() => onEdit(u)}>
                   编辑
                 </Button>
@@ -695,9 +719,6 @@ function UserTable({ users, roleName, deptName, onEdit, onDelete, onToggleBlock 
                   onClick={() => onToggleBlock(u)}
                 >
                   {u.status === USER_STATUS.DISABLED ? '启用' : '禁用'}
-                </Button>
-                <Button variant="danger" onClick={() => onDelete(u)}>
-                  删除
                 </Button>
               </td>
             </tr>

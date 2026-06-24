@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { departmentsApi } from '@/api/departments'
 import { getCurrentUser } from '@/api/auth'
 import { ApiError, toApiError } from '@/api/errors'
@@ -41,6 +42,7 @@ const emptyForm: DepartmentInput = {
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function DepartmentsPage() {
+  const navigate = useNavigate()
   const user = getCurrentUser()
   const roleId = user?.role_id ?? 0
   // Writes (register/delete/Update*) are admin-only on the backend
@@ -52,11 +54,11 @@ export function DepartmentsPage() {
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
 
-  // transient action error (e.g. delete failure) shown inline below the toolbar
+  // transient action error shown inline below the toolbar
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
-  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
-  const [pendingDelete, setPendingDelete] = useState<Department | null>(null)
+  // delete confirmation — triggered from the edit modal's footer
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   // create modal
@@ -179,21 +181,23 @@ export function DepartmentsPage() {
     }
   }
 
-  const handleDelete = (dept: Department) => {
+  // Delete from within the edit modal — confirm, then remove + close + reload.
+  const requestDelete = () => {
     setActionError(null)
-    setPendingDelete(dept)
+    setConfirmDeleteOpen(true)
   }
 
   const confirmDelete = async () => {
-    if (!pendingDelete) return
+    if (!editing) return
     setDeleting(true)
     try {
-      await departmentsApi.deleteById(pendingDelete.id)
-      if (editing?.id === pendingDelete.id) closeEdit()
-      setPendingDelete(null)
+      await departmentsApi.deleteById(editing.id)
+      setConfirmDeleteOpen(false)
+      closeEdit()
       void loadAll()
     } catch (err) {
       setActionError(toApiError(err))
+      setConfirmDeleteOpen(false)
     } finally {
       setDeleting(false)
     }
@@ -264,7 +268,7 @@ export function DepartmentsPage() {
                   <th>说明</th>
                   <th>上级部门</th>
                   <th>创建时间</th>
-                  {canManage && <th className={styles.actionCol}>操作</th>}
+                  <th className={styles.actionCol}>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -284,16 +288,16 @@ export function DepartmentsPage() {
                       {dept.parent == null ? '—' : nameById.get(dept.parent) ?? `#${dept.parent}`}
                     </td>
                     <td className={styles.mono}>{formatTime(dept.created_at)}</td>
-                    {canManage && (
-                      <td className={styles.actionCol}>
+                    <td className={styles.actionCol}>
+                      <Button variant="ghost" onClick={() => navigate(`/departments/${dept.id}`)}>
+                        详情
+                      </Button>
+                      {canManage && (
                         <Button variant="ghost" onClick={() => openEdit(dept)}>
                           编辑
                         </Button>
-                        <Button variant="danger" onClick={() => handleDelete(dept)}>
-                          删除
-                        </Button>
-                      </td>
-                    )}
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -352,10 +356,18 @@ export function DepartmentsPage() {
         closeOnEscape={false}
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+            <Button
+              variant="danger"
+              style={{ marginRight: 'auto' }}
+              onClick={requestDelete}
+              disabled={submitting || deleting}
+            >
+              删除
+            </Button>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting || deleting}>
               取消
             </Button>
-            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting || deleting}>
               {submitting ? '保存中…' : '保存'}
             </Button>
           </>
@@ -385,14 +397,14 @@ export function DepartmentsPage() {
         {editError && <ErrorBanner error={editError} prefix="保存失败" />}
       </Modal>
 
-      {/* Delete confirmation — destructive, explicit action */}
+      {/* Delete confirmation — triggered from the edit modal */}
       <ConfirmDialog
-        open={pendingDelete !== null}
+        open={confirmDeleteOpen}
         title="删除部门"
         description={
           <>
-            确认删除部门 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
-            （id={pendingDelete?.id}）？该操作不可撤销。
+            确认删除部门 <span className="confirmHighlight">「{editing?.name}」</span>
+            （id={editing?.id}）？该操作不可撤销。
             <span className="confirmNote">该操作不会自动删除其子部门。</span>
           </>
         }
@@ -400,7 +412,7 @@ export function DepartmentsPage() {
         tone="danger"
         busy={deleting}
         onConfirm={() => void confirmDelete()}
-        onCancel={() => setPendingDelete(null)}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </section>
   )
