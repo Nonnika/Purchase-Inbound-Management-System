@@ -45,7 +45,7 @@ interface EditForm {
   real_name: string
   phone: string
   role_id: number
-  /** Read-only in the edit modal — the backend exposes no UpdateDepartmentById. */
+  /** Editable via `POST /users/UpdateDepartmentById`. `null` = 无部门 (backend 0). */
   department_id: number | null
   password: string
 }
@@ -269,7 +269,8 @@ export function UsersPage() {
       const nextPassword = editForm.password
 
       // Only hit the per-field Update*ById endpoints whose value actually
-      // changed. (There is no UpdateDepartmentById, so department is immutable.)
+      // changed. Backend department_id is a non-pointer int64 (0 = unassigned);
+      // normalize 0 -> null to match the form's representation.
       if (nextUsername !== editing.username) {
         await usersApi.updateUserNameById(id, nextUsername)
       }
@@ -281,6 +282,10 @@ export function UsersPage() {
       }
       if (nextRoleId !== editing.role_id) {
         await usersApi.updateRoleById(id, nextRoleId)
+      }
+      const nextDepartmentId = editForm.department_id
+      if (nextDepartmentId !== (editing.department_id || null)) {
+        await usersApi.updateDepartmentById(id, nextDepartmentId ?? 0)
       }
       if (nextPassword.trim() !== '') {
         await usersApi.updatePasswordById(id, nextPassword)
@@ -519,18 +524,18 @@ export function UsersPage() {
               />
               <Select
                 label="部门"
-                value=""
-                disabled
+                value={editForm.department_id == null ? '' : String(editForm.department_id)}
+                onChange={(e) =>
+                  updateEditField(
+                    'department_id',
+                    e.target.value === '' ? null : Number(e.target.value),
+                  )
+                }
                 options={[
-                  {
-                    value: '',
-                    label:
-                      editForm.department_id == null
-                        ? '（无部门）'
-                        : deptName.get(editForm.department_id) ?? `#${editForm.department_id}`,
-                  },
+                  { value: '', label: '（无部门）' },
+                  ...departments.map((d) => ({ value: String(d.id), label: `${d.name}（#${d.id}）` })),
                 ]}
-                helper="部门暂不支持修改（后端无对应接口）。"
+                helper={departments.length === 0 ? '暂无部门可选。' : undefined}
               />
             </div>
             <TextInput
