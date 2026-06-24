@@ -14,7 +14,7 @@ export interface ConfirmDialogProps {
   onCancel: () => void
   confirmLabel?: string
   cancelLabel?: string
-  /** Visual tone of the confirm button + leading icon. Default 'danger'. */
+  /** Visual tone of the confirm button. Default 'danger'. */
   tone?: ConfirmTone
   /** Disables the confirm button and shows a busy label (e.g. during the request). */
   busy?: boolean
@@ -22,9 +22,10 @@ export interface ConfirmDialogProps {
 
 /**
  * Carbon-style confirmation modal for destructive / irreversible actions
- * (delete, block, etc.). Wraps `Modal` with a leading status icon tile and a
- * tone-matched confirm button (Red 60 for `danger`). Replaces the native
- * `window.confirm` so the prompt matches the design system.
+ * (delete, block, etc.). Wraps `Modal` with a tone-matched confirm button
+ * (Red 60 for `danger`). Replaces the native `window.confirm` so the prompt
+ * matches the design system. Centered on screen — unlike the tall create/edit
+ * forms, a confirm card is short and reads best at viewport center.
  *
  * Like the create/edit modals, it is explicit-close: scrim click and Escape
  * cancel (no unsaved input to lose), but the action only fires on the buttons.
@@ -45,6 +46,7 @@ export function ConfirmDialog({
       open={open}
       title={title}
       onClose={onCancel}
+      centered
       closeOnScrimClick
       closeOnEscape
       footer={
@@ -62,17 +64,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      <div className={styles.row}>
-        <span
-          className={[styles.icon, tone === 'danger' ? styles.iconDanger : styles.iconPrimary]
-            .filter(Boolean)
-            .join(' ')}
-          aria-hidden="true"
-        >
-          {tone === 'danger' ? '!' : 'i'}
-        </span>
-        <div className={styles.body}>{description}</div>
-      </div>
+      <div className={styles.body}>{description}</div>
     </Modal>
   )
 }

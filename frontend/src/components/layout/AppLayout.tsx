@@ -29,7 +29,7 @@ export function AppLayout() {
   return (
     <div className={styles.shell}>
       <header className={styles.nav}>
-        <div className={`${styles.navInner} container`}>
+        <div className={styles.navInner}>
           <NavLink to="/" className={styles.brand}>
             PIMS采购入库管理系统
           </NavLink>
