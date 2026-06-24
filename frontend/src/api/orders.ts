@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { AffectedResult } from '@/types/user'
 import type {
   ChainVerifyResult,
   Order,
@@ -97,6 +98,13 @@ export const ordersApi = {
   warehouseShip(input: AppendEventInput): Promise<OrderEvent> {
     return apiClient
       .post<OrderEvent>('/orders/warehouseShip', { order_id: input.order_id, ...buildPayload(input.note) })
+      .then((res) => res.data)
+  },
+
+  /** DELETE /orders/delete?id= -> { affected }. Soft delete (appends ORDER_DELETED event). */
+  delete(orderId: number): Promise<AffectedResult> {
+    return apiClient
+      .delete<AffectedResult>('/orders/delete', { params: { id: orderId } })
       .then((res) => res.data)
   },
 
