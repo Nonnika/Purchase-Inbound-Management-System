@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { departmentsApi } from '@/api/departments'
+import { getCurrentUser } from '@/api/auth'
 import { ApiError, toApiError } from '@/api/errors'
+import { ROLE_ID } from '@/types/role'
 import type { Department, DepartmentInput } from '@/types/department'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
@@ -38,6 +40,13 @@ const emptyForm: DepartmentInput = {
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function DepartmentsPage() {
+  const user = getCurrentUser()
+  const roleId = user?.role_id ?? 0
+  // Writes (register/delete/Update*) are admin-only on the backend
+  // (departmentController.go RegisterAuthRouter). Hide them from non-admins so
+  // they can't start workflows that only fail with 403.
+  const canManage = roleId === ROLE_ID.ADMIN
+
   const [departments, setDepartments] = useState<Department[]>([])
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
@@ -199,9 +208,11 @@ export function DepartmentsPage() {
             <h1 className={styles.title}>部门列表</h1>
           </div>
           <div className={styles.actions}>
-            <Button variant="primary" onClick={openCreate}>
-              新增部门
-            </Button>
+            {canManage && (
+              <Button variant="primary" onClick={openCreate}>
+                新增部门
+              </Button>
+            )}
             <Button variant="tertiary" onClick={() => void loadAll()} disabled={state === 'loading'}>
               {state === 'loading' ? '加载中…' : '刷新'}
             </Button>
@@ -227,7 +238,9 @@ export function DepartmentsPage() {
         ) : state === 'loading' ? (
           <p className={styles.muted}>正在加载部门数据…</p>
         ) : state === 'empty' ? (
-          <p className={styles.muted}>暂无部门数据，点击「新增部门」创建。</p>
+          <p className={styles.muted}>
+            {canManage ? '暂无部门数据，点击「新增部门」创建。' : '暂无部门数据。'}
+          </p>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
@@ -238,7 +251,7 @@ export function DepartmentsPage() {
                   <th>说明</th>
                   <th>上级部门</th>
                   <th>创建时间</th>
-                  <th className={styles.actionCol}>操作</th>
+                  {canManage && <th className={styles.actionCol}>操作</th>}
                 </tr>
               </thead>
               <tbody>
@@ -258,14 +271,16 @@ export function DepartmentsPage() {
                       {dept.parent == null ? '—' : nameById.get(dept.parent) ?? `#${dept.parent}`}
                     </td>
                     <td className={styles.mono}>{formatTime(dept.created_at)}</td>
-                    <td className={styles.actionCol}>
-                      <Button variant="ghost" onClick={() => openEdit(dept)}>
-                        编辑
-                      </Button>
-                      <Button variant="danger" onClick={() => void handleDelete(dept)}>
-                        删除
-                      </Button>
-                    </td>
+                    {canManage && (
+                      <td className={styles.actionCol}>
+                        <Button variant="ghost" onClick={() => openEdit(dept)}>
+                          编辑
+                        </Button>
+                        <Button variant="danger" onClick={() => void handleDelete(dept)}>
+                          删除
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
