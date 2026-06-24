@@ -7,6 +7,7 @@ import { DepartmentsPage } from '@/pages/departments/DepartmentsPage'
 import { OrdersPage } from '@/pages/orders/OrdersPage'
 import { ItemsPage } from '@/pages/items/ItemsPage'
 import { WarehousesPage } from '@/pages/warehouses/WarehousesPage'
+import { WarehouseDetailPage } from '@/pages/warehouses/WarehouseDetailPage'
 import { CategoriesPage } from '@/pages/categories/CategoriesPage'
 import { ProfilePage } from '@/pages/profile/ProfilePage'
 import { LoginPage } from '@/pages/login/LoginPage'
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
       { path: 'orders', element: <OrdersPage /> },
       { path: 'items', element: <ItemsPage /> },
       { path: 'warehouses', element: <WarehousesPage /> },
+      { path: 'warehouses/:id', element: <WarehouseDetailPage /> },
       { path: 'categories', element: <CategoriesPage /> },
       { path: 'profile', element: <ProfilePage /> },
       // The procurement flow lives on the unified /orders page; these legacy

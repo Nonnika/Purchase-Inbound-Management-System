@@ -1,0 +1,162 @@
+.topbar {
+  margin-bottom: var(--space-05);
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-05);
+  margin-bottom: var(--space-07);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+  margin-top: var(--space-02);
+}
+
+.subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-04);
+  margin-top: var(--space-03);
+  font-size: 13px;
+  letter-spacing: 0.16px;
+}
+
+.descText {
+  color: var(--cds-text-secondary);
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.16px;
+}
+
+/* ---- Summary stat tiles ---- */
+/* Auto-fit grid: tiles fill the row width, no empty space on the right. */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-03);
+  margin-bottom: var(--space-08);
+}
+
+.statTile {
+  background: var(--cds-layer-01);
+  padding: var(--space-05);
+}
+
+.statTileHighlight {
+  background: var(--blue-10);
+}
+
+/* Full-width total-value tile, sits above the grid on its own row. */
+.valueTile {
+  margin-bottom: var(--space-03);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-05);
+  flex-wrap: wrap;
+}
+
+.valueTileFigure {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--cds-text-primary);
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.32px;
+  margin-bottom: var(--space-03);
+  font-family: var(--font-mono);
+}
+
+.statValue {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--cds-text-primary);
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+/* Secondary line under a stat value (e.g. the raw counts behind a ratio). */
+.statSub {
+  margin-top: var(--space-02);
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+  font-family: var(--font-mono);
+}
+
+.statValueWarn {
+  color: var(--cds-support-error);
+}
+
+/* ---- Stored items ---- */
+.itemsSection {
+  margin-top: var(--space-02);
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: var(--space-05);
+}
+
+.tableWrap {
+  overflow-x: auto;
+  background: var(--cds-layer-01);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  letter-spacing: 0.16px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-04) var(--space-05);
+  border-bottom: 1px solid var(--cds-border-tile);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-02);
+}
+
+.table tbody tr {
+  transition: background-color 0.15s ease;
+}
+.table tbody tr:hover {
+  background: var(--cds-layer-01-hover);
+}
+
+.invLow {
+  color: var(--cds-support-error);
+  font-weight: 600;
+}

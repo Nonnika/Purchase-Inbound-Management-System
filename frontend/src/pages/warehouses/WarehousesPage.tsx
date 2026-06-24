@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { warehousesApi } from '@/api/warehouses'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
@@ -27,6 +28,7 @@ const emptyForm: WarehouseInput = {
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function WarehousesPage() {
+  const navigate = useNavigate()
   const user = getCurrentUser()
   const roleId = user?.role_id ?? 0
   const canManage = roleId === ROLE_ID.ADMIN
@@ -171,6 +173,11 @@ export function WarehousesPage() {
     }
   }
 
+  /** Open the dedicated warehouse detail route (`/warehouses/:id`). */
+  const openDetail = (w: Warehouse) => {
+    navigate(`/warehouses/${w.id}`)
+  }
+
   return (
     <section className="section">
       <div className="container">
@@ -237,7 +244,7 @@ export function WarehousesPage() {
                   <th>仓库名称</th>
                   <th>说明</th>
                   <th>创建时间</th>
-                  {canManage && <th className={styles.actionCol}>操作</th>}
+                  <th className={styles.actionCol}>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -249,16 +256,21 @@ export function WarehousesPage() {
                     </td>
                     <td className={styles.desc}>{w.description || '—'}</td>
                     <td className={styles.mono}>{formatTime(w.create_at)}</td>
-                    {canManage && (
-                      <td className={styles.actionCol}>
+                    <td className={styles.actionCol}>
+                      <Button variant="ghost" onClick={() => openDetail(w)}>
+                        详情
+                      </Button>
+                      {canManage && (
                         <Button variant="ghost" onClick={() => openEdit(w)}>
                           编辑
                         </Button>
+                      )}
+                      {canManage && (
                         <Button variant="danger" onClick={() => handleDelete(w)}>
                           删除
                         </Button>
-                      </td>
-                    )}
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
