@@ -1,7 +1,8 @@
 # Purchase Inbound Management System
 
-![Go Version](https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=flat-square&logo=go&logoColor=white)
-
+![Go](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens) 
+	![MySQL](https://img.shields.io/badge/mysql-4479A1.svg?style=for-the-badge&logo=mysql&logoColor=white)  
 Purchase Inbound Management System, or PIMS, is a database course project for managing users, departments, roles, warehouses, item categories, inventory items, and purchase/outbound orders.
 
 The repository contains a Go backend API and a React frontend.
