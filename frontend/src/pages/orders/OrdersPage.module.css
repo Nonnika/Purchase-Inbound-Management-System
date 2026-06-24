@@ -1,0 +1,241 @@
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-05);
+  margin-bottom: var(--space-06);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-03);
+  flex-wrap: wrap;
+}
+
+/* Filter bar */
+.filters {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-05);
+  margin-bottom: var(--space-06);
+  flex-wrap: wrap;
+}
+
+/*
+ * Filter selects use the shared <Select> component (margin-bottom + width come
+ * from Select.module.css `.group`). In the toolbar we want a fixed width and no
+ * form-field bottom margin, so override with a descendant selector — higher
+ * specificity than the component's `.group` rule, no `!important` needed.
+ */
+.filters .filterField {
+  width: 200px;
+  margin-bottom: 0;
+}
+
+/* Transient action error shown below the toolbar */
+.actionErrorWrap {
+  margin-bottom: var(--space-06);
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-05);
+}
+@media (max-width: 480px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Table */
+.tableWrap {
+  overflow-x: auto;
+  background: var(--cds-layer-01);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  letter-spacing: 0.16px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-04) var(--space-05);
+  border-bottom: 1px solid var(--cds-border-tile);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-02);
+}
+
+.table tbody tr {
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+.table tbody tr:hover {
+  background: var(--cds-layer-01-hover);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.16px;
+}
+
+.actionCol {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ---- Detail modal ---- */
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-04) var(--space-06);
+  margin-bottom: var(--space-06);
+}
+@media (max-width: 560px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-01);
+}
+
+.detailLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.32px;
+}
+
+.detailValue {
+  font-size: 14px;
+  color: var(--cds-text-primary);
+  letter-spacing: 0.16px;
+}
+
+.sectionHeading {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cds-text-primary);
+  margin: var(--space-06) 0 var(--space-04);
+  display: flex;
+  align-items: center;
+  gap: var(--space-03);
+}
+
+/* Event timeline */
+.timeline {
+  border-left: 2px solid var(--cds-border-subtle);
+  padding-left: var(--space-05);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-05);
+  margin-bottom: var(--space-06);
+}
+
+.event {
+  position: relative;
+}
+
+.event::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--space-05) - 5px);
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cds-focus);
+}
+
+.eventHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-03);
+  flex-wrap: wrap;
+}
+
+.eventMeta {
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+  font-family: var(--font-mono);
+}
+
+.eventHash {
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.eventPayload {
+  font-size: 13px;
+  color: var(--cds-text-secondary);
+  margin-top: var(--space-02);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+}
+
+/* Chain verification badge */
+.chainBadge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px var(--space-03);
+  border-radius: var(--radius-0);
+  letter-spacing: 0.16px;
+}
+.chainOk {
+  color: var(--cds-text-on-color);
+  background: var(--cds-support-success);
+}
+.chainFail {
+  color: var(--cds-text-on-color);
+  background: var(--red-60);
+}
+.chainPending {
+  color: var(--cds-text-secondary);
+  background: var(--cds-layer-02);
+}
+
+/* Action buttons row inside the detail modal */
+.detailActions {
+  display: flex;
+  gap: var(--space-03);
+  flex-wrap: wrap;
+  margin-top: var(--space-05);
+  padding-top: var(--space-05);
+  border-top: 1px solid var(--cds-border-tile);
+}
+
+.terminalNote {
+  font-size: 13px;
+  color: var(--cds-text-secondary);
+}

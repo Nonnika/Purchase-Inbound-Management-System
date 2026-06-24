@@ -1,0 +1,17 @@
+.body {
+  color: var(--cds-text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0.16px;
+}
+
+.body :global(.confirmHighlight) {
+  font-weight: 600;
+}
+
+.body :global(.confirmNote) {
+  display: block;
+  margin-top: var(--space-03);
+  color: var(--cds-text-secondary);
+  font-size: 13px;
+}

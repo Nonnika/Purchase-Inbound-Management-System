@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/api/users'
+import { rolesApi } from '@/api/roles'
+import { departmentsApi } from '@/api/departments'
+import { getCurrentUser } from '@/api/auth'
 import { ApiError, toApiError } from '@/api/errors'
 import type { User, UserInput } from '@/types/user'
 import { USER_STATUS } from '@/types/user'
+import type { Role } from '@/types/role'
+import type { Department } from '@/types/department'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { TextInput } from '@/components/ui/TextInput/TextInput'
+import { Select } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './UsersPage.module.css'
 
@@ -33,16 +41,44 @@ const emptyForm: UserInput = {
   department_id: null,
 }
 
+/** Edit-form state. `password` is optional — only sent when filled in. */
+interface EditForm {
+  username: string
+  real_name: string
+  phone: string
+  role_id: number
+  /** Editable via `POST /users/UpdateDepartmentById`. `null` = 无部门 (backend 0). */
+  department_id: number | null
+  password: string
+}
+
 /**
  * Users page — exercises the full user API surface:
- *   selectAll (list), selectByUserName (search), deleteById (remove),
- *   insert (create). Requires the Go backend running on :8080.
+ *   selectAll (list), selectByUserName (search), register (create),
+ *   deleteById (remove), and the per-field Update*ById edits. Role/department
+ *   pickers populate from /roles/selectAll and /departments/selectAll. Requires
+ *   the Go backend running on :8080 and an admin JWT.
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function UsersPage() {
+  const navigate = useNavigate()
   const [users, setUsers] = useState<User[]>([])
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
+
+  // roles + departments for the pickers and table name resolution
+  const [roles, setRoles] = useState<Role[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const roleName = useMemo(() => {
+    const m = new Map<number, string>()
+    roles.forEach((r) => m.set(r.id, r.name))
+    return m
+  }, [roles])
+  const deptName = useMemo(() => {
+    const m = new Map<number, string>()
+    departments.forEach((d) => m.set(d.id, d.name))
+    return m
+  }, [departments])
 
   // search — searchError holds non-404 failures; 404 / empty result shows as "未找到"
   const [searchTerm, setSearchTerm] = useState('')
@@ -53,12 +89,27 @@ export function UsersPage() {
   // transient action error (e.g. delete) shown inline below the toolbar
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
+  // destructive-action confirmation — native confirm replaced with a Carbon
+  // ConfirmDialog. One pending slot covers both delete and block/unblock.
+  const [pending, setPending] = useState<
+    | { kind: 'delete'; user: User }
+    | { kind: 'toggleBlock'; user: User }
+    | null
+  >(null)
+  const [confirming, setConfirming] = useState(false)
+
   // create modal
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState<UserInput>(emptyForm)
   const [formError, setFormError] = useState<ApiError | null>(null)
   const [phoneError, setPhoneError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // edit modal
+  const [editing, setEditing] = useState<User | null>(null)
+  const [editForm, setEditForm] = useState<EditForm | null>(null)
+  const [editError, setEditError] = useState<ApiError | null>(null)
+  const [editPhoneError, setEditPhoneError] = useState<string | null>(null)
 
   const loadAll = useCallback(async () => {
     setState('loading')
@@ -75,6 +126,10 @@ export function UsersPage() {
 
   useEffect(() => {
     void loadAll()
+    // Pickers + table name resolution — load once. Non-fatal on failure:
+    // selects stay empty and the table falls back to raw ids.
+    void rolesApi.selectAll().then(setRoles).catch(() => undefined)
+    void departmentsApi.selectAll().then(setDepartments).catch(() => undefined)
   }, [loadAll])
 
   const exitSearch = () => {
@@ -110,20 +165,51 @@ export function UsersPage() {
     }
   }
 
-  const handleDelete = async (user: User) => {
-    if (!window.confirm(`确认删除用户「${user.real_name || user.username}」(id=${user.id})？`)) return
+  const handleDelete = (user: User) => {
     setActionError(null)
+    setPending({ kind: 'delete', user })
+  }
+
+  const handleToggleBlock = (user: User) => {
+    const current = getCurrentUser()
+    if (current?.id === user.id) {
+      setActionError(
+        new ApiError({
+          code: 'BAD_REQUEST',
+          status: null,
+          reason: '请求参数有误',
+          detail: '不能封禁/解封当前登录的账号',
+        }),
+      )
+      return
+    }
+    setActionError(null)
+    setPending({ kind: 'toggleBlock', user })
+  }
+
+  const confirmPending = async () => {
+    if (!pending) return
+    setConfirming(true)
     try {
-      await usersApi.deleteById(user.id)
-      if (searchResult?.id === user.id) exitSearch()
+      if (pending.kind === 'delete') {
+        await usersApi.deleteById(pending.user.id)
+      } else if (pending.user.status === USER_STATUS.DISABLED) {
+        await usersApi.unblockById(pending.user.id)
+      } else {
+        await usersApi.blockById(pending.user.id)
+      }
+      if (searchResult?.id === pending.user.id) exitSearch()
       else void loadAll()
+      setPending(null)
     } catch (err) {
       setActionError(toApiError(err))
+    } finally {
+      setConfirming(false)
     }
   }
 
   const openCreate = () => {
-    setForm(emptyForm)
+    setForm({ ...emptyForm })
     setFormError(null)
     setPhoneError(null)
     setActionError(null)
@@ -171,6 +257,91 @@ export function UsersPage() {
     }
   }
 
+  const openEdit = (user: User) => {
+    setEditing(user)
+    setEditForm({
+      username: user.username,
+      real_name: user.real_name ?? '',
+      phone: user.phone ?? '',
+      role_id: user.role_id,
+      department_id: user.department_id || null,
+      password: '',
+    })
+    setEditError(null)
+    setEditPhoneError(null)
+    setActionError(null)
+  }
+
+  const closeEdit = () => {
+    setEditing(null)
+    setEditForm(null)
+    setEditError(null)
+    setEditPhoneError(null)
+  }
+
+  const updateEditField = <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
+    setEditForm((prev) => (prev ? { ...prev, [key]: value } : prev))
+    if (key === 'phone') {
+      const v = (value as string).trim()
+      setEditPhoneError(v && !isValidPhone(v) ? '电话格式不正确' : null)
+    }
+  }
+
+  const submitEdit = async () => {
+    if (!editing || !editForm) return
+    if (!editForm.username.trim()) {
+      setEditError(new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '用户名不能为空' }))
+      return
+    }
+    const phone = editForm.phone.trim()
+    if (phone && !isValidPhone(phone)) {
+      setEditPhoneError('电话格式不正确')
+      setEditError(new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '电话格式不正确，请检查后重试' }))
+      return
+    }
+
+    setSubmitting(true)
+    setEditError(null)
+    try {
+      const id = editing.id
+      const nextUsername = editForm.username.trim()
+      const nextRealName = editForm.real_name.trim()
+      const nextPhone = editForm.phone.trim()
+      const nextRoleId = Number(editForm.role_id) || 0
+      const nextPassword = editForm.password
+
+      // Only hit the per-field Update*ById endpoints whose value actually
+      // changed. Backend department_id is a non-pointer int64 (0 = unassigned);
+      // normalize 0 -> null to match the form's representation.
+      if (nextUsername !== editing.username) {
+        await usersApi.updateUserNameById(id, nextUsername)
+      }
+      if (nextRealName !== (editing.real_name ?? '')) {
+        await usersApi.updateRealNameById(id, nextRealName)
+      }
+      if (nextPhone !== (editing.phone ?? '')) {
+        await usersApi.updatePhoneById(id, nextPhone)
+      }
+      if (nextRoleId !== editing.role_id) {
+        await usersApi.updateRoleById(id, nextRoleId)
+      }
+      const nextDepartmentId = editForm.department_id
+      if (nextDepartmentId !== (editing.department_id || null)) {
+        await usersApi.updateDepartmentById(id, nextDepartmentId ?? 0)
+      }
+      if (nextPassword.trim() !== '') {
+        await usersApi.updatePasswordById(id, nextPassword)
+      }
+      closeEdit()
+      if (searchResult?.id === id) exitSearch()
+      else void loadAll()
+    } catch (err) {
+      setEditError(toApiError(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const isSearchMode = searchResult !== undefined || searchError !== null
 
   return (
@@ -187,6 +358,9 @@ export function UsersPage() {
             </Button>
             <Button variant="tertiary" onClick={() => void loadAll()} disabled={state === 'loading'}>
               {state === 'loading' ? '加载中…' : '刷新'}
+            </Button>
+            <Button variant="ghost" onClick={() => navigate('/roles')}>
+              角色管理
             </Button>
           </div>
         </div>
@@ -216,7 +390,7 @@ export function UsersPage() {
         {/* Transient action error (e.g. delete failure) */}
         {actionError && (
           <div className={styles.actionErrorWrap}>
-            <ErrorBanner error={actionError} prefix="删除失败" />
+            <ErrorBanner error={actionError} prefix="操作失败" />
           </div>
         )}
 
@@ -225,7 +399,14 @@ export function UsersPage() {
           searchError ? (
             <ErrorBanner error={searchError} prefix="搜索失败" />
           ) : searchResult ? (
-            <UserTable users={[searchResult]} onDelete={handleDelete} />
+            <UserTable
+              users={[searchResult]}
+              roleName={roleName}
+              deptName={deptName}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+              onToggleBlock={handleToggleBlock}
+            />
           ) : (
             <p className={styles.muted}>未找到用户名为「{searchTerm}」的用户。</p>
           )
@@ -244,7 +425,14 @@ export function UsersPage() {
         ) : state === 'empty' ? (
           <p className={styles.muted}>暂无用户数据，点击「新增用户」创建。</p>
         ) : (
-          <UserTable users={users} onDelete={handleDelete} />
+          <UserTable
+            users={users}
+            roleName={roleName}
+            deptName={deptName}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+            onToggleBlock={handleToggleBlock}
+          />
         )}
       </div>
 
@@ -298,35 +486,175 @@ export function UsersPage() {
           />
         </div>
         <div className={styles.row}>
-          <TextInput
-            label="角色 ID *"
-            type="number"
-            value={form.role_id === 0 ? '' : form.role_id}
-            onChange={(e) => updateField('role_id', Number(e.target.value))}
-            placeholder="role_id"
+          <Select
+            label="角色 *"
+            value={form.role_id === 0 ? '' : String(form.role_id)}
+            onChange={(e) => updateField('role_id', e.target.value === '' ? 0 : Number(e.target.value))}
+            options={[
+              { value: '', label: '请选择角色' },
+              ...roles.map((r) => ({ value: String(r.id), label: `${r.name}（#${r.id}）` })),
+            ]}
+            helper={roles.length === 0 ? '暂无角色可选。' : undefined}
           />
-          <TextInput
-            label="部门 ID"
-            type="number"
-            value={form.department_id ?? ''}
+          <Select
+            label="部门 *"
+            value={form.department_id == null ? '' : String(form.department_id)}
             onChange={(e) =>
               updateField('department_id', e.target.value === '' ? null : Number(e.target.value))
             }
-            placeholder="可选"
+            options={[
+              { value: '', label: '（无部门）' },
+              ...departments.map((d) => ({ value: String(d.id), label: `${d.name}（#${d.id}）` })),
+            ]}
+            helper={departments.length === 0 ? '暂无部门可选。' : undefined}
           />
         </div>
         {formError && <ErrorBanner error={formError} prefix="创建失败" />}
       </Modal>
+
+      {/* Edit modal — explicit-close only */}
+      <Modal
+        open={editing !== null}
+        title={editing ? `编辑用户 · ${editing.username}` : '编辑用户'}
+        onClose={closeEdit}
+        closeOnScrimClick={false}
+        closeOnEscape={false}
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+              {submitting ? '保存中…' : '保存'}
+            </Button>
+          </>
+        }
+      >
+        {editForm && (
+          <>
+            <TextInput
+              label="用户名 *"
+              value={editForm.username}
+              onChange={(e) => updateEditField('username', e.target.value)}
+              placeholder="登录用户名"
+            />
+            <div className={styles.row}>
+              <TextInput
+                label="姓名"
+                value={editForm.real_name}
+                onChange={(e) => updateEditField('real_name', e.target.value)}
+                placeholder="真实姓名"
+              />
+              <TextInput
+                label="电话"
+                value={editForm.phone}
+                onChange={(e) => updateEditField('phone', e.target.value)}
+                placeholder="联系方式"
+                error={editPhoneError ?? undefined}
+                helper="手机号：11 位数字；座机：区号-号码"
+              />
+            </div>
+            <div className={styles.row}>
+              <Select
+                label="角色 *"
+                value={editForm.role_id === 0 ? '' : String(editForm.role_id)}
+                onChange={(e) =>
+                  updateEditField('role_id', e.target.value === '' ? 0 : Number(e.target.value))
+                }
+                options={[
+                  { value: '', label: '请选择角色' },
+                  ...roles.map((r) => ({ value: String(r.id), label: `${r.name}（#${r.id}）` })),
+                ]}
+              />
+              <Select
+                label="部门 *"
+                value={editForm.department_id == null ? '' : String(editForm.department_id)}
+                onChange={(e) =>
+                  updateEditField(
+                    'department_id',
+                    e.target.value === '' ? null : Number(e.target.value),
+                  )
+                }
+                options={[
+                  { value: '', label: '（无部门）' },
+                  ...departments.map((d) => ({ value: String(d.id), label: `${d.name}（#${d.id}）` })),
+                ]}
+                helper={departments.length === 0 ? '暂无部门可选。' : undefined}
+              />
+            </div>
+            <TextInput
+              label="新密码（可选）"
+              type="password"
+              reveal
+              value={editForm.password}
+              onChange={(e) => updateEditField('password', e.target.value)}
+              placeholder="留空则不修改密码"
+              helper="填写后将以 bcrypt 重新哈希存储。"
+            />
+            {editError && <ErrorBanner error={editError} prefix="保存失败" />}
+          </>
+        )}
+      </Modal>
+
+      {/* Destructive-action confirmation — delete or block/unblock */}
+      <ConfirmDialog
+        open={pending !== null}
+        title={
+          pending?.kind === 'delete'
+            ? '删除用户'
+            : pending && pending.user.status === USER_STATUS.DISABLED
+              ? '解封用户'
+              : '封禁用户'
+        }
+        description={
+          <>
+            {pending?.kind === 'delete' ? (
+              <>
+                确认删除用户 <span className="confirmHighlight">「{pending.user.real_name || pending.user.username}」</span>
+                （id={pending.user.id}）？该操作不可撤销。
+              </>
+            ) : (
+              <>
+                确认{pending && pending.user.status === USER_STATUS.DISABLED ? '解封' : '封禁'}用户{' '}
+                <span className="confirmHighlight">「{pending?.user.real_name || pending?.user.username}」</span>
+                （id={pending?.user.id}）？
+                {pending && pending.user.status !== USER_STATUS.DISABLED && (
+                  <span className="confirmNote">封禁后该用户将无法登录系统。</span>
+                )}
+              </>
+            )}
+          </>
+        }
+        confirmLabel={
+          pending?.kind === 'delete'
+            ? '删除'
+            : pending && pending.user.status === USER_STATUS.DISABLED
+              ? '解封'
+              : '封禁'
+        }
+        tone={
+          pending?.kind === 'delete' || (pending && pending.user.status !== USER_STATUS.DISABLED)
+            ? 'danger'
+            : 'primary'
+        }
+        busy={confirming}
+        onConfirm={() => void confirmPending()}
+        onCancel={() => setPending(null)}
+      />
     </section>
   )
 }
 
 interface UserTableProps {
   users: User[]
+  roleName: Map<number, string>
+  deptName: Map<number, string>
+  onEdit: (user: User) => void
   onDelete: (user: User) => void
+  onToggleBlock: (user: User) => void
 }
 
-function UserTable({ users, onDelete }: UserTableProps) {
+function UserTable({ users, roleName, deptName, onEdit, onDelete, onToggleBlock }: UserTableProps) {
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
@@ -336,8 +664,8 @@ function UserTable({ users, onDelete }: UserTableProps) {
             <th>用户名</th>
             <th>姓名</th>
             <th>电话</th>
-            <th>角色 ID</th>
-            <th>部门 ID</th>
+            <th>角色</th>
+            <th>部门</th>
             <th>状态</th>
             <th className={styles.actionCol}>操作</th>
           </tr>
@@ -349,8 +677,8 @@ function UserTable({ users, onDelete }: UserTableProps) {
               <td>{u.username}</td>
               <td>{u.real_name || '—'}</td>
               <td className={styles.mono}>{u.phone || '—'}</td>
-              <td className={styles.mono}>{u.role_id}</td>
-              <td className={styles.mono}>{u.department_id ?? '—'}</td>
+              <td>{u.role_id ? roleName.get(u.role_id) ?? `#${u.role_id}` : '—'}</td>
+              <td>{u.department_id ? deptName.get(u.department_id) ?? `#${u.department_id}` : '—'}</td>
               <td>
                 {u.status === USER_STATUS.ACTIVE ? (
                   <Tag kind="green">正常</Tag>
@@ -359,6 +687,15 @@ function UserTable({ users, onDelete }: UserTableProps) {
                 )}
               </td>
               <td className={styles.actionCol}>
+                <Button variant="ghost" onClick={() => onEdit(u)}>
+                  编辑
+                </Button>
+                <Button
+                  variant={u.status === USER_STATUS.DISABLED ? 'secondary' : 'ghost'}
+                  onClick={() => onToggleBlock(u)}
+                >
+                  {u.status === USER_STATUS.DISABLED ? '启用' : '禁用'}
+                </Button>
                 <Button variant="danger" onClick={() => onDelete(u)}>
                   删除
                 </Button>

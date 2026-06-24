@@ -4,9 +4,12 @@ import styles from './AppLayout.module.css'
 
 const navItems = [
   { to: '/', label: '概览', end: true },
+  { to: '/orders', label: '订单管理' },
+  { to: '/items', label: '物品管理' },
+  { to: '/warehouses', label: '仓库管理' },
+  { to: '/categories', label: '分类管理' },
   { to: '/users', label: '用户管理' },
-  { to: '/purchasing', label: '采购管理' },
-  { to: '/inbound', label: '入库管理' },
+  { to: '/departments', label: '部门管理' },
 ]
 
 /**
@@ -26,9 +29,9 @@ export function AppLayout() {
   return (
     <div className={styles.shell}>
       <header className={styles.nav}>
-        <div className={`${styles.navInner} container`}>
+        <div className={styles.navInner}>
           <NavLink to="/" className={styles.brand}>
-            PIMS · 采购入库管理系统
+            PIMS采购入库管理系统
           </NavLink>
           <nav className={styles.links}>
             {navItems.map((item) => (

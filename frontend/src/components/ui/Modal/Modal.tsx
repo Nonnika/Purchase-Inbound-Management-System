@@ -13,6 +13,13 @@ export interface ModalProps {
   closeOnScrimClick?: boolean
   /** Whether pressing Escape closes the modal. Default true. */
   closeOnEscape?: boolean
+  /**
+   * Whether to vertically center the card in the viewport instead of pinning
+   * it to the top. Default false (top-aligned, which suits tall create/edit
+   * forms); set true for short dialogs (e.g. ConfirmDialog) that read best
+   * at screen center.
+   */
+  centered?: boolean
 }
 
 /**
@@ -29,6 +36,7 @@ export function Modal({
   footer,
   closeOnScrimClick = true,
   closeOnEscape = true,
+  centered = false,
 }: ModalProps) {
   useEffect(() => {
     if (!open) return
@@ -47,7 +55,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className={styles.scrim}
+      className={[styles.scrim, centered ? styles.scrimCentered : ''].filter(Boolean).join(' ')}
       onClick={closeOnScrimClick ? onClose : undefined}
       role="presentation"
     >

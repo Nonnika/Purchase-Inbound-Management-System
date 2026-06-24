@@ -15,6 +15,8 @@ import type { AffectedResult, User, UserInput } from '@/types/user'
  *   POST   /api/users/UpdateRoleById?id=<int>                -> { affected }  (form field: role_id)
  *   POST   /api/users/UpdateRealNameById?id=<int>            -> { affected }  (JSON/ form: real_name)
  *   POST   /api/users/UpdatePhoneById?id=<int>               -> { affected }  (JSON/ form: phone)
+ *   POST   /api/users/blockById?id=<int>                     -> { affected }  (no body; status -> 0)
+ *   POST   /api/users/unblockById?id=<int>                   -> { affected }  (no body; status -> 1)
  *
  * Login is handled separately in src/api/auth.ts (POST /users/verify, public).
  *
@@ -42,7 +44,7 @@ export const usersApi = {
       .then((res) => res.data)
   },
 
-  /** DELETE /users/deleteById?id=  (method changed from GET to DELETE). */
+  /** DELETE /users/deleteById?id=  (method is DELETE). */
   deleteById(id: number): Promise<AffectedResult> {
     return apiClient
       .delete<AffectedResult>('/users/deleteById', { params: { id } })
@@ -66,13 +68,86 @@ export const usersApi = {
    * `password` from form data, then bcrypt-hashes it server-side.
    */
   updatePasswordById(id: number, password: string): Promise<AffectedResult> {
-    const form = new URLSearchParams()
-    form.append('password', password)
+    return postUserFormFields('/users/UpdatePasswordById', id, { password })
+  },
+
+  /** POST /users/UpdateUserNameById?id=  (form field: user_name) -> { affected }. */
+  updateUserNameById(id: number, userName: string): Promise<AffectedResult> {
+    return postUserFormFields('/users/UpdateUserNameById', id, { user_name: userName })
+  },
+
+  /** POST /users/UpdateRoleById?id=  (form field: role_id) -> { affected }. */
+  updateRoleById(id: number, roleId: number): Promise<AffectedResult> {
+    return postUserFormFields('/users/UpdateRoleById', id, { role_id: String(roleId) })
+  },
+
+  /**
+   * POST /users/UpdateDepartmentById?id=  (form field: department_id) -> { affected }.
+   * The backend reads `department_id` via ctx.PostForm, so it must be
+   * form-encoded (like the other three ctx.PostForm user updates).
+   */
+  updateDepartmentById(id: number, departmentId: number): Promise<AffectedResult> {
+    return postUserFormFields('/users/UpdateDepartmentById', id, {
+      department_id: String(departmentId),
+    })
+  },
+
+  /**
+   * POST /users/UpdateRealNameById?id=  (JSON: { real_name }) -> { affected }.
+   * The backend binds `real_name` (*string) via ShouldBind and normalizes an
+   * empty string to nil, so passing '' clears the field.
+   */
+  updateRealNameById(id: number, realName: string): Promise<AffectedResult> {
     return apiClient
-      .post<AffectedResult>('/users/UpdatePasswordById', form, {
-        params: { id },
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      })
+      .post<AffectedResult>('/users/UpdateRealNameById', { real_name: realName }, { params: { id } })
       .then((res) => res.data)
   },
+
+  /**
+   * POST /users/UpdatePhoneById?id=  (JSON: { phone }) -> { affected }.
+   * Same nil-normalization as real_name: '' clears the phone.
+   */
+  updatePhoneById(id: number, phone: string): Promise<AffectedResult> {
+    return apiClient
+      .post<AffectedResult>('/users/UpdatePhoneById', { phone }, { params: { id } })
+      .then((res) => res.data)
+  },
+
+  /**
+   * POST /users/blockById?id=  (no body) -> { affected }. Sets status to 0
+   * (blocked). The backend reads only the `id` query param. A blocked user is
+   * refused at /users/verify with 403 `user is disabled`.
+   */
+  blockById(id: number): Promise<AffectedResult> {
+    return apiClient
+      .post<AffectedResult>('/users/blockById', undefined, { params: { id } })
+      .then((res) => res.data)
+  },
+
+  /** POST /users/unblockById?id=  (no body) -> { affected }. Sets status to 1 (normal). */
+  unblockById(id: number): Promise<AffectedResult> {
+    return apiClient
+      .post<AffectedResult>('/users/unblockById', undefined, { params: { id } })
+      .then((res) => res.data)
+  },
+}
+
+/**
+ * POST form-encoded fields to a user Update* endpoint with `id` in the query
+ * string. The backend reads these via ctx.PostForm, so they must be
+ * application/x-www-form-urlencoded (not JSON).
+ */
+function postUserFormFields(
+  path: string,
+  id: number,
+  fields: Record<string, string>,
+): Promise<AffectedResult> {
+  const form = new URLSearchParams()
+  Object.entries(fields).forEach(([k, v]) => form.append(k, v))
+  return apiClient
+    .post<AffectedResult>(path, form, {
+      params: { id },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
+    .then((res) => res.data)
 }

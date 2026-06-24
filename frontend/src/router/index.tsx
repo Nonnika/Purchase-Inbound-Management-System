@@ -3,6 +3,11 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { HomePage } from '@/pages/home/HomePage'
 import { UsersPage } from '@/pages/users/UsersPage'
 import { RolesPage } from '@/pages/roles/RolesPage'
+import { DepartmentsPage } from '@/pages/departments/DepartmentsPage'
+import { OrdersPage } from '@/pages/orders/OrdersPage'
+import { ItemsPage } from '@/pages/items/ItemsPage'
+import { WarehousesPage } from '@/pages/warehouses/WarehousesPage'
+import { CategoriesPage } from '@/pages/categories/CategoriesPage'
 import { LoginPage } from '@/pages/login/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { isLoggedIn } from '@/api/auth'
@@ -34,9 +39,15 @@ export const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: 'users', element: <UsersPage /> },
       { path: 'roles', element: <RolesPage /> },
-      // Placeholder routes — pages to be built out as the backend grows.
-      { path: 'purchasing', element: <HomePage /> },
-      { path: 'inbound', element: <HomePage /> },
+      { path: 'departments', element: <DepartmentsPage /> },
+      { path: 'orders', element: <OrdersPage /> },
+      { path: 'items', element: <ItemsPage /> },
+      { path: 'warehouses', element: <WarehousesPage /> },
+      { path: 'categories', element: <CategoriesPage /> },
+      // The procurement flow lives on the unified /orders page; these legacy
+      // nav entries alias there so existing links keep working.
+      { path: 'purchasing', element: <OrdersPage /> },
+      { path: 'inbound', element: <OrdersPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
