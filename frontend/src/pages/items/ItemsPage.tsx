@@ -4,7 +4,7 @@ import { warehousesApi } from '@/api/warehouses'
 import { itemCategoriesApi } from '@/api/itemCategories'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
-import type { Item, ItemInput } from '@/types/item'
+import type { Item, ItemInput, ItemUpdate } from '@/types/item'
 import type { Warehouse } from '@/types/warehouse'
 import type { ItemCategory } from '@/types/itemCategory'
 import { ROLE_ID } from '@/types/role'
@@ -40,6 +40,8 @@ export function ItemsPage() {
   const user = getCurrentUser()
   const roleId = user?.role_id ?? 0
   const canCreate = roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.PURCHASER
+  const canManage =
+    roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.WAREHOUSE || roleId === ROLE_ID.AUDITOR
 
   const [items, setItems] = useState<Item[]>([])
   const [state, setState] = useState<LoadState>('loading')
@@ -67,6 +69,14 @@ export function ItemsPage() {
   const [form, setForm] = useState<ItemInput>(emptyForm)
   const [formError, setFormError] = useState<ApiError | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // edit modal
+  const [editing, setEditing] = useState<Item | null>(null)
+  const [editForm, setEditForm] = useState<ItemInput>(emptyForm)
+  const [editError, setEditError] = useState<ApiError | null>(null)
+
+  // transient action error (e.g. delete) shown inline above the table
+  const [actionError, setActionError] = useState<ApiError | null>(null)
 
   const loadAll = useCallback(async () => {
     setState('loading')
@@ -168,6 +178,100 @@ export function ItemsPage() {
     }
   }
 
+  const openEdit = (item: Item) => {
+    setEditing(item)
+    setEditForm({
+      name: item.name,
+      category_id: item.category_id,
+      price: item.price,
+      item_inventory: item.item_inventory,
+      frozen_inventory: item.frozen_inventory,
+      warehouse_id: item.warehouse_id,
+      warning_level: item.warning_level,
+    })
+    setEditError(null)
+    setActionError(null)
+  }
+
+  const closeEdit = () => {
+    setEditing(null)
+    setEditError(null)
+  }
+
+  const updateEditField = <K extends keyof ItemInput>(key: K, value: ItemInput[K]) => {
+    setEditForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const updateEditOptionalNumber = (key: keyof ItemInput, raw: string) => {
+    if (raw.trim() === '') {
+      updateEditField(key, null)
+      return
+    }
+    const n = Number(raw)
+    updateEditField(key, Number.isFinite(n) ? n : null)
+  }
+
+  const submitEdit = async () => {
+    if (!editing) return
+    // Same local validation as create — mirrors backend checks.
+    if (!editForm.name.trim()) {
+      setEditError(
+        new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '物品名称不能为空' }),
+      )
+      return
+    }
+    const inventory = editForm.item_inventory
+    const frozen = editForm.frozen_inventory
+    if (inventory != null && inventory < 0) {
+      setEditError(
+        new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '库存不能为负数' }),
+      )
+      return
+    }
+    if (frozen != null && frozen < 0) {
+      setEditError(
+        new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '冻结库存不能为负数' }),
+      )
+      return
+    }
+    if (inventory != null && frozen != null && frozen > inventory) {
+      setEditError(
+        new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '冻结库存不能大于可用库存' }),
+      )
+      return
+    }
+
+    const patch = diffItem(editing, { ...editForm, name: editForm.name.trim() })
+    // Nothing changed — close silently.
+    if (Object.keys(patch).length === 0) {
+      closeEdit()
+      return
+    }
+
+    setSubmitting(true)
+    setEditError(null)
+    try {
+      await itemsApi.update(editing.id, patch)
+      closeEdit()
+      void loadAll()
+    } catch (err) {
+      setEditError(toApiError(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (item: Item) => {
+    if (!window.confirm(`确认删除物品「${item.name}」(id=${item.id})？`)) return
+    setActionError(null)
+    try {
+      await itemsApi.delete(item.id)
+      void loadAll()
+    } catch (err) {
+      setActionError(toApiError(err))
+    }
+  }
+
   return (
     <section className="section">
       <div className="container">
@@ -198,6 +302,12 @@ export function ItemsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
+        {actionError && (
+          <div className={styles.actionErrorWrap}>
+            <ErrorBanner error={actionError} prefix="操作失败" />
+          </div>
+        )}
 
         {/* Body */}
         {state === 'error' ? (
@@ -233,6 +343,7 @@ export function ItemsPage() {
                   <th>仓库</th>
                   <th>预警阈值</th>
                   <th>创建时间</th>
+                  {canManage && <th>操作</th>}
                 </tr>
               </thead>
               <tbody>
@@ -272,6 +383,16 @@ export function ItemsPage() {
                         )}
                       </td>
                       <td className={styles.mono}>{formatTime(it.created_at)}</td>
+                      {canManage && (
+                        <td>
+                          <Button variant="ghost" onClick={() => openEdit(it)}>
+                            编辑
+                          </Button>
+                          <Button variant="danger" onClick={() => void handleDelete(it)}>
+                            删除
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -309,6 +430,35 @@ export function ItemsPage() {
           errorPrefix="创建失败"
         />
       </Modal>
+
+      {/* Edit modal — explicit-close only */}
+      <Modal
+        open={editing !== null}
+        title={editing ? `编辑物品 · ${editing.name}` : '编辑物品'}
+        onClose={closeEdit}
+        closeOnScrimClick={false}
+        closeOnEscape={false}
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+              {submitting ? '保存中…' : '保存'}
+            </Button>
+          </>
+        }
+      >
+        <ItemFormFields
+          form={editForm}
+          updateField={updateEditField}
+          updateOptionalNumber={updateEditOptionalNumber}
+          categories={categories}
+          warehouses={warehouses}
+          error={editError}
+          errorPrefix="保存失败"
+        />
+      </Modal>
     </section>
   )
 }
@@ -320,3 +470,22 @@ function formatTime(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+
+/**
+ * Build a partial update payload of only the fields that changed between the
+ * original item and the edited form. Both sides use `number | null` for the
+ * nullable numerics, so a direct !== comparison detects changes (including
+ * null ↔ number). Returns an empty object when nothing changed.
+ */
+function diffItem(original: Item, next: ItemInput): ItemUpdate {
+  const patch: ItemUpdate = {}
+  if (next.name !== original.name) patch.name = next.name
+  if (next.category_id !== original.category_id) patch.category_id = next.category_id
+  if (next.price !== original.price) patch.price = next.price
+  if (next.item_inventory !== original.item_inventory) patch.item_inventory = next.item_inventory
+  if (next.frozen_inventory !== original.frozen_inventory) patch.frozen_inventory = next.frozen_inventory
+  if (next.warehouse_id !== original.warehouse_id) patch.warehouse_id = next.warehouse_id
+  if (next.warning_level !== original.warning_level) patch.warning_level = next.warning_level
+  return patch
+}
+

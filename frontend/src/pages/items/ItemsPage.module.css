@@ -125,3 +125,7 @@
   color: var(--red-60);
   font-weight: 600;
 }
+
+.actionErrorWrap {
+  margin-bottom: 1rem;
+}
