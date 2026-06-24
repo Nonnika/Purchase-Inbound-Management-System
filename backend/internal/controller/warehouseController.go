@@ -28,7 +28,12 @@ func NewWarehouseController(dao *dao.WarehouseDao) *WarehouseController {
 }
 
 func (w *WarehouseController) SelectAll(ctx *gin.Context) {
-	rows, err := w.dao.SelectAll()
+	var req pageRequest
+	if !bindPageRequest(ctx, &req) {
+		return
+	}
+
+	rows, total, err := w.dao.SelectPage(req.Page, req.PageSize)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -37,7 +42,7 @@ func (w *WarehouseController) SelectAll(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, rows)
+	respondPage(ctx, rows, total)
 }
 
 func (w *WarehouseController) SelectById(ctx *gin.Context) {
@@ -274,7 +279,7 @@ func (w *WarehouseController) RegisterAuthRouter(r *gin.RouterGroup) {
 	admin := middleware.Role(model.RoleAdmin)
 
 	r.POST("/warehouses/register", admin, w.Insert)
-	r.GET("/warehouses/selectAll", w.SelectAll)
+	r.POST("/warehouses/selectAll", w.SelectAll)
 	r.GET("/warehouses/selectById", w.SelectById)
 	r.GET("/warehouses/selectByName", w.SelectByName)
 	r.DELETE("/warehouses/deleteById", admin, w.DeleteById)

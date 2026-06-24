@@ -19,6 +19,21 @@ func (w *WarehouseDao) SelectAll() ([]model.Warehouse, error) {
 	return warehouses, nil
 }
 
+func (w *WarehouseDao) SelectPage(page, pageSize int64) ([]model.Warehouse, int64, error) {
+	warehouses := make([]model.Warehouse, 0)
+	err := w.DB.Select(&warehouses, "select id,name,description,create_at from warehouses order by id desc limit ? offset ?", pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int64
+	if err := w.DB.Get(&total, "select count(*) from warehouses"); err != nil {
+		return nil, 0, err
+	}
+
+	return warehouses, total, nil
+}
+
 func (w *WarehouseDao) SelectById(id int64) (*model.Warehouse, error) {
 	var warehouse model.Warehouse
 	err := w.DB.Get(&warehouse, "select id,name,description,create_at from warehouses where id = ?", id)

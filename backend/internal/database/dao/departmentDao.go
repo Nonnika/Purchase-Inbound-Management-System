@@ -19,6 +19,21 @@ func (d *DepartmentDao) SelectAll() ([]model.Department, error) {
 	return departments, nil
 }
 
+func (d *DepartmentDao) SelectPage(page, pageSize int64) ([]model.Department, int64, error) {
+	departments := make([]model.Department, 0)
+	err := d.DB.Select(&departments, "select id,name,description,parent,created_at from departments order by id desc limit ? offset ?", pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int64
+	if err := d.DB.Get(&total, "select count(*) from departments"); err != nil {
+		return nil, 0, err
+	}
+
+	return departments, total, nil
+}
+
 func (d *DepartmentDao) SelectById(id int64) (*model.Department, error) {
 	var department model.Department
 	err := d.DB.Get(&department, "select id,name,description,parent,created_at from departments where id = ?", id)

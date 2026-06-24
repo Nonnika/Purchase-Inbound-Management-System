@@ -36,7 +36,12 @@ func NewOrderController(dao *dao.OrderDao) *OrderController {
 }
 
 func (o *OrderController) SelectAll(ctx *gin.Context) {
-	orders, err := o.dao.SelectAll()
+	var req pageRequest
+	if !bindPageRequest(ctx, &req) {
+		return
+	}
+
+	orders, total, err := o.dao.SelectPage(req.Page, req.PageSize)
 	if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -45,7 +50,7 @@ func (o *OrderController) SelectAll(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, orders)
+	respondPage(ctx, orders, total)
 }
 
 func (o *OrderController) SelectById(ctx *gin.Context) {
@@ -325,7 +330,7 @@ func (o *OrderController) RegisterAuthRouter(r *gin.RouterGroup) {
 	r.POST("/orders/auditReject", auditor, o.AuditReject)
 	r.POST("/orders/warehouseReceive", warehouse, o.WarehouseReceive)
 	r.POST("/orders/warehouseShip", warehouse, o.WarehouseShip)
-	r.GET("/orders/selectAll", orderViewer, o.SelectAll)
+	r.POST("/orders/selectAll", orderViewer, o.SelectAll)
 	r.GET("/orders/selectById", o.SelectById)
 	r.GET("/orders/selectByUserId", o.SelectByUserId)
 	r.DELETE("/orders/delete", o.Delete)
