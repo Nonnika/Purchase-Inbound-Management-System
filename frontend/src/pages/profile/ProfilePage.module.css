@@ -77,6 +77,12 @@
   margin-top: var(--space-02);
 }
 
+/* "修改密码" entry in the identity sidebar — full-width secondary action. */
+.pwdButton {
+  width: 100%;
+  margin-top: var(--space-04);
+}
+
 .errorWrap {
   margin-top: var(--space-06);
   padding-top: var(--space-05);

@@ -34,10 +34,16 @@ apiClient.interceptors.response.use(
   (error) => {
     const apiError = fromAxiosError(error)
     // Expired / invalid token: drop the session and force re-login.
-    // Skip the redirect for the login call itself so the login page can show
-    // its own error (the verify endpoint returns 400/401 for bad credentials).
+    // Skip the redirect for endpoints whose 401 is a legitimate business error
+    // rather than token expiry: the login call (verify returns 401 for bad
+    // credentials) and self-service password change (updateMyPassword returns
+    // 401 when the supplied old_password is wrong — the form shows that inline
+    // instead of logging the user out for a typo).
     const url = (error?.config?.url as string | undefined) ?? ''
-    if (apiError.status === 401 && !url.includes('/users/verify')) {
+    const isPasswordBusiness401 =
+      apiError.status === 401 &&
+      (url.includes('/users/verify') || url.includes('/users/updateMyPassword'))
+    if (apiError.status === 401 && !isPasswordBusiness401) {
       clearSession()
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
         window.location.assign('/login')

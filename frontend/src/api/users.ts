@@ -18,8 +18,12 @@ import type { AffectedResult, User, UserInput } from '@/types/user'
  *   POST   /api/users/UpdatePhoneById?id=<int>               -> { affected }  (JSON/ form: phone)
  *   POST   /api/users/blockById?id=<int>                     -> { affected }  (no body; status -> 0)
  *   POST   /api/users/unblockById?id=<int>                   -> { affected }  (no body; status -> 1)
+ *   POST   /api/users/updateMyPassword                       -> { affected }  (JSON: old_password, new_password)
  *
- * Login is handled separately in src/api/auth.ts (POST /users/verify, public).
+ * `updateMyPassword` is the only self-service write here: any authenticated
+ * user may call it (no admin gate) to change their *own* password. Non-admins
+ * must supply a correct `old_password`; admins may skip it. Login is handled
+ * separately in src/api/auth.ts (POST /users/verify, public).
  *
  * All methods reject with an `ApiError` (see src/api/errors.ts) on failure,
  * carrying the HTTP status, a stable code, a short reason, and the backend detail.
@@ -135,6 +139,26 @@ export const usersApi = {
   unblockById(id: number): Promise<AffectedResult> {
     return apiClient
       .post<AffectedResult>('/users/unblockById', undefined, { params: { id } })
+      .then((res) => res.data)
+  },
+
+  /**
+   * POST /users/updateMyPassword  (any authenticated user; no role gate) ->
+   * { affected }. Changes the *current* user's password. The backend binds JSON
+   * `{ old_password, new_password }`; non-admins must supply a correct
+   * `old_password` (a wrong one yields 401 `old_password is wrong`), while
+   * admins may skip it. The new password is bcrypt-hashed server-side.
+   *
+   * Note: a 401 here is a business error (wrong old password), NOT token expiry
+   * — client.ts excludes this endpoint from the 401 auto-logout so the form can
+   * surface it inline.
+   */
+  updateMyPassword(oldPassword: string, newPassword: string): Promise<AffectedResult> {
+    return apiClient
+      .post<AffectedResult>('/users/updateMyPassword', {
+        old_password: oldPassword,
+        new_password: newPassword,
+      })
       .then((res) => res.data)
   },
 }
