@@ -23,10 +23,12 @@
   padding: var(--space-07);
 }
 
-/* Two-column body: identity sidebar (fixed) + detail grid (fills remainder). */
+/* Two-column body: identity sidebar (fixed) + detail grid (fills remainder).
+   Stretch so the sidebar matches the detail column's height, letting the
+   修改密码 button pin to the sidebar's bottom (margin-top: auto). */
 .cardBody {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: var(--space-08);
 }
 
@@ -77,10 +79,11 @@
   margin-top: var(--space-02);
 }
 
-/* "修改密码" entry in the identity sidebar — full-width secondary action. */
+/* "修改密码" entry pinned to the sidebar's bottom (margin-top: auto pushes it
+   down past the identity/tags content, aligned with the lower detail rows). */
 .pwdButton {
   width: 100%;
-  margin-top: var(--space-04);
+  margin-top: auto;
 }
 
 .errorWrap {
@@ -149,6 +152,12 @@
   }
   .avatar {
     margin-bottom: 0;
+  }
+  /* In the stacked, wrapped sidebar the pin-to-bottom trick doesn't apply —
+     give the button a normal top gap and let it wrap onto its own line. */
+  .pwdButton {
+    margin-top: var(--space-04);
+    width: auto;
   }
   .detailRow {
     grid-template-columns: 96px 1fr;
