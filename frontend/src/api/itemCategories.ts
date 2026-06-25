@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { PageParams, Paginated } from '@/types/pagination'
 import type { AffectedResult } from '@/types/user'
 import type { CreatedResult } from '@/types/department'
 import type { ItemCategory, ItemCategoryInput } from '@/types/itemCategory'
@@ -13,7 +14,7 @@ import type { ItemCategory, ItemCategoryInput } from '@/types/itemCategory'
  * Write routes are admin-gated on the backend.
  *
  *   POST   /api/itemCategories/register        (admin) -> { id }       (JSON: ItemCategoryInput)
- *   GET    /api/itemCategories/selectAll                -> ItemCategory[]
+ *   POST   /api/itemCategories/selectAll       (body {page, page_size} -> {list, total})
  *   GET    /api/itemCategories/selectById?id=           -> ItemCategory   (400 id / 404)
  *   GET    /api/itemCategories/selectByName?name=       -> ItemCategory   (400 name / 404)
  *   DELETE /api/itemCategories/deleteById?id=  (admin)  -> { affected }
@@ -28,9 +29,10 @@ import type { ItemCategory, ItemCategoryInput } from '@/types/itemCategory'
  * All methods reject with an `ApiError` (see src/api/errors.ts) on failure.
  */
 export const itemCategoriesApi = {
-  selectAll(): Promise<ItemCategory[]> {
+  /** Paginated category list. POST `{ page, page_size }` -> `{ list, total }` (id desc). */
+  selectAll(params: PageParams = {}): Promise<Paginated<ItemCategory>> {
     return apiClient
-      .get<ItemCategory[]>('/itemCategories/selectAll')
+      .post<Paginated<ItemCategory>>('/itemCategories/selectAll', params)
       .then((res) => res.data)
   },
 

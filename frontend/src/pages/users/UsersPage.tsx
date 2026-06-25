@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usersApi } from '@/api/users'
 import { rolesApi } from '@/api/roles'
 import { departmentsApi } from '@/api/departments'
-import { getCurrentUser } from '@/api/auth'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
+import { getCurrentUser } from '@/api/auth'
+import { usePagedList } from '@/hooks/usePagedList'
 import type { User, UserInput } from '@/types/user'
 import { USER_STATUS } from '@/types/user'
 import type { Role } from '@/types/role'
@@ -16,9 +18,10 @@ import { Select } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { Pagination } from '@/components/ui/Pagination/Pagination'
 import styles from './UsersPage.module.css'
 
-type LoadState = 'loading' | 'error' | 'empty' | 'ready'
+const PAGE_SIZE = 10
 
 /**
  * Validates a phone number. Accepts:
@@ -54,17 +57,19 @@ interface EditForm {
 
 /**
  * Users page — exercises the full user API surface:
- *   selectAll (list), selectByUserName (search), register (create),
- *   deleteById (remove), and the per-field Update*ById edits. Role/department
- *   pickers populate from /roles/selectAll and /departments/selectAll. Requires
- *   the Go backend running on :8080 and an admin JWT.
+ *   selectAll (paginated list), selectByUserName (single-user search), register
+ *   (create), deleteById (remove), and the per-field Update*ById edits. Role/
+ *   department pickers populate from /roles/selectAll and /departments/selectAll
+ *   (fetched in full). Requires the Go backend running on :8080 and an admin JWT.
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function UsersPage() {
   const navigate = useNavigate()
-  const [users, setUsers] = useState<User[]>([])
-  const [state, setState] = useState<LoadState>('loading')
-  const [loadError, setLoadError] = useState<ApiError | null>(null)
+  const { rows: users, total, page, loading, error, reload, goToPage } = usePagedList<User>({
+    loadPage: usersApi.selectAll,
+    pageSize: PAGE_SIZE,
+    searchMode: false,
+  })
 
   // roles + departments for the pickers and table name resolution
   const [roles, setRoles] = useState<Role[]>([])
@@ -90,12 +95,9 @@ export function UsersPage() {
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
   // destructive-action confirmation — native confirm replaced with a Carbon
-  // ConfirmDialog. One pending slot covers both delete and block/unblock.
-  const [pending, setPending] = useState<
-    | { kind: 'delete'; user: User }
-    | { kind: 'toggleBlock'; user: User }
-    | null
-  >(null)
+  // ConfirmDialog. The pending slot covers block/unblock only; delete lives on
+  // the user detail page's danger zone now.
+  const [pending, setPending] = useState<{ kind: 'toggleBlock'; user: User } | null>(null)
   const [confirming, setConfirming] = useState(false)
 
   // create modal
@@ -111,32 +113,22 @@ export function UsersPage() {
   const [editError, setEditError] = useState<ApiError | null>(null)
   const [editPhoneError, setEditPhoneError] = useState<string | null>(null)
 
-  const loadAll = useCallback(async () => {
-    setState('loading')
-    setLoadError(null)
-    try {
-      const data = await usersApi.selectAll()
-      setUsers(data)
-      setState(data.length === 0 ? 'empty' : 'ready')
-    } catch (err) {
-      setLoadError(toApiError(err))
-      setState('error')
-    }
-  }, [])
+  // delete confirmation — triggered from the edit modal's footer
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
+  // Pickers + table name resolution — load once (full set). Non-fatal on
+  // failure: selects stay empty and the table falls back to raw ids.
   useEffect(() => {
-    void loadAll()
-    // Pickers + table name resolution — load once. Non-fatal on failure:
-    // selects stay empty and the table falls back to raw ids.
-    void rolesApi.selectAll().then(setRoles).catch(() => undefined)
-    void departmentsApi.selectAll().then(setDepartments).catch(() => undefined)
-  }, [loadAll])
+    void fetchAll(rolesApi.selectAll).then(setRoles).catch(() => undefined)
+    void fetchAll(departmentsApi.selectAll).then(setDepartments).catch(() => undefined)
+  }, [])
 
   const exitSearch = () => {
     setSearchResult(undefined)
     setSearchError(null)
     setSearchTerm('')
-    void loadAll()
+    reload()
   }
 
   const runSearch = async () => {
@@ -165,11 +157,6 @@ export function UsersPage() {
     }
   }
 
-  const handleDelete = (user: User) => {
-    setActionError(null)
-    setPending({ kind: 'delete', user })
-  }
-
   const handleToggleBlock = (user: User) => {
     const current = getCurrentUser()
     if (current?.id === user.id) {
@@ -191,15 +178,13 @@ export function UsersPage() {
     if (!pending) return
     setConfirming(true)
     try {
-      if (pending.kind === 'delete') {
-        await usersApi.deleteById(pending.user.id)
-      } else if (pending.user.status === USER_STATUS.DISABLED) {
+      if (pending.user.status === USER_STATUS.DISABLED) {
         await usersApi.unblockById(pending.user.id)
       } else {
         await usersApi.blockById(pending.user.id)
       }
       if (searchResult?.id === pending.user.id) exitSearch()
-      else void loadAll()
+      else reload()
       setPending(null)
     } catch (err) {
       setActionError(toApiError(err))
@@ -279,6 +264,33 @@ export function UsersPage() {
     setEditPhoneError(null)
   }
 
+  // Delete from within the edit modal — confirm, then remove + close + reload.
+  // Self-delete is blocked (an admin can't delete the account they're logged in as).
+  const isEditingSelf = editing != null && getCurrentUser()?.id === editing.id
+
+  const requestDelete = () => {
+    if (!editing || isEditingSelf) return
+    setActionError(null)
+    setConfirmDeleteOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!editing) return
+    setDeleting(true)
+    try {
+      await usersApi.deleteById(editing.id)
+      setConfirmDeleteOpen(false)
+      closeEdit()
+      if (searchResult?.id === editing.id) exitSearch()
+      else reload()
+    } catch (err) {
+      setActionError(toApiError(err))
+      setConfirmDeleteOpen(false)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const updateEditField = <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
     setEditForm((prev) => (prev ? { ...prev, [key]: value } : prev))
     if (key === 'phone') {
@@ -334,7 +346,7 @@ export function UsersPage() {
       }
       closeEdit()
       if (searchResult?.id === id) exitSearch()
-      else void loadAll()
+      else reload()
     } catch (err) {
       setEditError(toApiError(err))
     } finally {
@@ -356,8 +368,8 @@ export function UsersPage() {
             <Button variant="primary" onClick={openCreate}>
               新增用户
             </Button>
-            <Button variant="tertiary" onClick={() => void loadAll()} disabled={state === 'loading'}>
-              {state === 'loading' ? '加载中…' : '刷新'}
+            <Button variant="tertiary" onClick={reload} disabled={loading}>
+              {loading ? '加载中…' : '刷新'}
             </Button>
             <Button variant="ghost" onClick={() => navigate('/roles')}>
               角色管理
@@ -404,35 +416,42 @@ export function UsersPage() {
               roleName={roleName}
               deptName={deptName}
               onEdit={openEdit}
-              onDelete={handleDelete}
               onToggleBlock={handleToggleBlock}
             />
           ) : (
             <p className={styles.muted}>未找到用户名为「{searchTerm}」的用户。</p>
           )
-        ) : state === 'error' ? (
+        ) : error ? (
           <ErrorBanner
-            error={loadError ?? toApiError(new Error('加载失败'))}
+            error={error}
             prefix="无法加载用户数据"
             action={
-              <Button variant="tertiary" onClick={() => void loadAll()}>
+              <Button variant="tertiary" onClick={reload}>
                 重试
               </Button>
             }
           />
-        ) : state === 'loading' ? (
+        ) : loading ? (
           <p className={styles.muted}>正在加载用户数据…</p>
-        ) : state === 'empty' ? (
+        ) : users.length === 0 ? (
           <p className={styles.muted}>暂无用户数据，点击「新增用户」创建。</p>
         ) : (
-          <UserTable
-            users={users}
-            roleName={roleName}
-            deptName={deptName}
-            onEdit={openEdit}
-            onDelete={handleDelete}
-            onToggleBlock={handleToggleBlock}
-          />
+          <>
+            <UserTable
+              users={users}
+              roleName={roleName}
+              deptName={deptName}
+              onEdit={openEdit}
+              onToggleBlock={handleToggleBlock}
+            />
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              loading={loading}
+              onChange={goToPage}
+            />
+          </>
         )}
       </div>
 
@@ -521,10 +540,19 @@ export function UsersPage() {
         closeOnEscape={false}
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+            <Button
+              variant="danger"
+              style={{ marginRight: 'auto' }}
+              onClick={requestDelete}
+              disabled={submitting || deleting || isEditingSelf}
+              title={isEditingSelf ? '不能删除当前登录的账号' : undefined}
+            >
+              删除
+            </Button>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting || deleting}>
               取消
             </Button>
-            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting || deleting}>
               {submitting ? '保存中…' : '保存'}
             </Button>
           </>
@@ -596,50 +624,43 @@ export function UsersPage() {
         )}
       </Modal>
 
-      {/* Destructive-action confirmation — delete or block/unblock */}
+      {/* Block/unblock confirmation — delete lives in the edit modal */}
       <ConfirmDialog
         open={pending !== null}
-        title={
-          pending?.kind === 'delete'
-            ? '删除用户'
-            : pending && pending.user.status === USER_STATUS.DISABLED
-              ? '解封用户'
-              : '封禁用户'
-        }
+        title={pending && pending.user.status === USER_STATUS.DISABLED ? '解封用户' : '封禁用户'}
         description={
           <>
-            {pending?.kind === 'delete' ? (
-              <>
-                确认删除用户 <span className="confirmHighlight">「{pending.user.real_name || pending.user.username}」</span>
-                （id={pending.user.id}）？该操作不可撤销。
-              </>
-            ) : (
-              <>
-                确认{pending && pending.user.status === USER_STATUS.DISABLED ? '解封' : '封禁'}用户{' '}
-                <span className="confirmHighlight">「{pending?.user.real_name || pending?.user.username}」</span>
-                （id={pending?.user.id}）？
-                {pending && pending.user.status !== USER_STATUS.DISABLED && (
-                  <span className="confirmNote">封禁后该用户将无法登录系统。</span>
-                )}
-              </>
+            确认{pending && pending.user.status === USER_STATUS.DISABLED ? '解封' : '封禁'}用户{' '}
+            <span className="confirmHighlight">「{pending?.user.real_name || pending?.user.username}」</span>
+            （id={pending?.user.id}）？
+            {pending && pending.user.status !== USER_STATUS.DISABLED && (
+              <span className="confirmNote">封禁后该用户将无法登录系统。</span>
             )}
           </>
         }
-        confirmLabel={
-          pending?.kind === 'delete'
-            ? '删除'
-            : pending && pending.user.status === USER_STATUS.DISABLED
-              ? '解封'
-              : '封禁'
-        }
-        tone={
-          pending?.kind === 'delete' || (pending && pending.user.status !== USER_STATUS.DISABLED)
-            ? 'danger'
-            : 'primary'
-        }
+        confirmLabel={pending && pending.user.status === USER_STATUS.DISABLED ? '解封' : '封禁'}
+        tone={pending && pending.user.status !== USER_STATUS.DISABLED ? 'danger' : 'primary'}
         busy={confirming}
         onConfirm={() => void confirmPending()}
         onCancel={() => setPending(null)}
+      />
+
+      {/* Delete confirmation — triggered from the edit modal */}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="删除用户"
+        description={
+          <>
+            确认删除用户{' '}
+            <span className="confirmHighlight">「{editing?.real_name || editing?.username}」</span>
+            （id={editing?.id}）？该操作不可撤销。
+          </>
+        }
+        confirmLabel="删除"
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </section>
   )
@@ -650,11 +671,11 @@ interface UserTableProps {
   roleName: Map<number, string>
   deptName: Map<number, string>
   onEdit: (user: User) => void
-  onDelete: (user: User) => void
   onToggleBlock: (user: User) => void
 }
 
-function UserTable({ users, roleName, deptName, onEdit, onDelete, onToggleBlock }: UserTableProps) {
+function UserTable({ users, roleName, deptName, onEdit, onToggleBlock }: UserTableProps) {
+  const navigate = useNavigate()
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
@@ -687,6 +708,9 @@ function UserTable({ users, roleName, deptName, onEdit, onDelete, onToggleBlock 
                 )}
               </td>
               <td className={styles.actionCol}>
+                <Button variant="ghost" onClick={() => navigate(`/users/${u.id}`)}>
+                  详情
+                </Button>
                 <Button variant="ghost" onClick={() => onEdit(u)}>
                   编辑
                 </Button>
@@ -695,9 +719,6 @@ function UserTable({ users, roleName, deptName, onEdit, onDelete, onToggleBlock 
                   onClick={() => onToggleBlock(u)}
                 >
                   {u.status === USER_STATUS.DISABLED ? '启用' : '禁用'}
-                </Button>
-                <Button variant="danger" onClick={() => onDelete(u)}>
-                  删除
                 </Button>
               </td>
             </tr>

@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { PageParams, Paginated } from '@/types/pagination'
 import type { AffectedResult } from '@/types/user'
 import type { CreatedResult } from '@/types/department'
 import type { Item, ItemInput, ItemUpdate } from '@/types/item'
@@ -9,7 +10,7 @@ import type { Item, ItemInput, ItemUpdate } from '@/types/item'
  * Reads need a valid JWT; `create` is purchaser/admin-gated;
  * `update`/`delete` are manager-gated (admin/warehouse/auditor).
  *
- *   GET    /api/items/selectAll        -> Item[]
+ *   POST   /api/items/selectAll  (body {page, page_size} -> {list, total})
  *   GET    /api/items/selectById?id=   -> Item   (400 id / 404)
  *   POST   /api/items/create  (purchaser/admin) -> { id }       (JSON: ItemInput)
  *   POST   /api/items/update?id=  (manager)     -> { affected } (JSON: ItemUpdate, partial)
@@ -18,8 +19,11 @@ import type { Item, ItemInput, ItemUpdate } from '@/types/item'
  * All methods reject with an `ApiError` (see src/api/errors.ts) on failure.
  */
 export const itemsApi = {
-  selectAll(): Promise<Item[]> {
-    return apiClient.get<Item[]>('/items/selectAll').then((res) => res.data)
+  /** Paginated item list. POST `{ page, page_size }` -> `{ list, total }` (id desc). */
+  selectAll(params: PageParams = {}): Promise<Paginated<Item>> {
+    return apiClient
+      .post<Paginated<Item>>('/items/selectAll', params)
+      .then((res) => res.data)
   },
 
   selectById(id: number): Promise<Item> {

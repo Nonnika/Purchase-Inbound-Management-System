@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { itemCategoriesApi } from '@/api/itemCategories'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
 import type { ItemCategory, ItemCategoryInput } from '@/types/itemCategory'
@@ -41,6 +43,7 @@ const emptyForm: ItemCategoryInput = {
  * happen in modals. All failures surface as ApiError (HTTP code + reason).
  */
 export function CategoriesPage() {
+  const navigate = useNavigate()
   const user = getCurrentUser()
   const roleId = user?.role_id ?? 0
   const canManage = roleId === ROLE_ID.ADMIN
@@ -50,8 +53,8 @@ export function CategoriesPage() {
   const [loadError, setLoadError] = useState<ApiError | null>(null)
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
-  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
-  const [pendingDelete, setPendingDelete] = useState<ItemCategory | null>(null)
+  // delete confirmation — triggered from the edit modal's footer
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   // create modal
@@ -70,7 +73,9 @@ export function CategoriesPage() {
     setState('loading')
     setLoadError(null)
     try {
-      const data = await itemCategoriesApi.selectAll()
+      // The tree view needs every category to rebuild parent-child adjacency,
+      // so auto-page through the (now paginated) selectAll endpoint.
+      const data = await fetchAll(itemCategoriesApi.selectAll)
       setCategories(data)
       setState(data.length === 0 ? 'empty' : 'ready')
     } catch (err) {
@@ -172,21 +177,23 @@ export function CategoriesPage() {
     }
   }
 
-  const handleDelete = (cat: ItemCategory) => {
+  // Delete from within the edit modal — confirm, then remove + close + reload.
+  const requestDelete = () => {
     setActionError(null)
-    setPendingDelete(cat)
+    setConfirmDeleteOpen(true)
   }
 
   const confirmDelete = async () => {
-    if (!pendingDelete) return
+    if (!editing) return
     setDeleting(true)
     try {
-      await itemCategoriesApi.deleteById(pendingDelete.id)
-      if (editing?.id === pendingDelete.id) closeEdit()
-      setPendingDelete(null)
+      await itemCategoriesApi.deleteById(editing.id)
+      setConfirmDeleteOpen(false)
+      closeEdit()
       void loadAll()
     } catch (err) {
       setActionError(toApiError(err))
+      setConfirmDeleteOpen(false)
     } finally {
       setDeleting(false)
     }
@@ -257,7 +264,7 @@ export function CategoriesPage() {
                   <th>说明</th>
                   <th>上级分类</th>
                   <th>创建时间</th>
-                  {canManage && <th className={styles.actionCol}>操作</th>}
+                  <th className={styles.actionCol}>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -277,16 +284,16 @@ export function CategoriesPage() {
                       {category.parent == null ? '—' : nameById.get(category.parent) ?? `#${category.parent}`}
                     </td>
                     <td className={styles.mono}>{formatTime(category.created_at)}</td>
-                    {canManage && (
-                      <td className={styles.actionCol}>
+                    <td className={styles.actionCol}>
+                      <Button variant="ghost" onClick={() => navigate(`/categories/${category.id}`)}>
+                        详情
+                      </Button>
+                      {canManage && (
                         <Button variant="ghost" onClick={() => openEdit(category)}>
                           编辑
                         </Button>
-                        <Button variant="danger" onClick={() => handleDelete(category)}>
-                          删除
-                        </Button>
-                      </td>
-                    )}
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -345,10 +352,18 @@ export function CategoriesPage() {
         closeOnEscape={false}
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+            <Button
+              variant="danger"
+              style={{ marginRight: 'auto' }}
+              onClick={requestDelete}
+              disabled={submitting || deleting}
+            >
+              删除
+            </Button>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting || deleting}>
               取消
             </Button>
-            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting || deleting}>
               {submitting ? '保存中…' : '保存'}
             </Button>
           </>
@@ -378,14 +393,14 @@ export function CategoriesPage() {
         {editError && <ErrorBanner error={editError} prefix="保存失败" />}
       </Modal>
 
-      {/* Delete confirmation — destructive, explicit action */}
+      {/* Delete confirmation — triggered from the edit modal */}
       <ConfirmDialog
-        open={pendingDelete !== null}
+        open={confirmDeleteOpen}
         title="删除分类"
         description={
           <>
-            确认删除分类 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
-            （id={pendingDelete?.id}）？该操作不可撤销。
+            确认删除分类 <span className="confirmHighlight">「{editing?.name}」</span>
+            （id={editing?.id}）？该操作不可撤销。
             <span className="confirmNote">该操作不会自动删除其子分类。</span>
           </>
         }
@@ -393,7 +408,7 @@ export function CategoriesPage() {
         tone="danger"
         busy={deleting}
         onConfirm={() => void confirmDelete()}
-        onCancel={() => setPendingDelete(null)}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </section>
   )

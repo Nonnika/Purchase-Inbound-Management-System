@@ -5,37 +5,45 @@ import type { Role } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { Pagination } from '@/components/ui/Pagination/Pagination'
 import styles from './RolesPage.module.css'
 
 type LoadState = 'loading' | 'error' | 'empty' | 'ready'
 
+const PAGE_SIZE = 10
+
 /**
- * Roles page — read-only list of the fixed role enum (GET /api/roles/selectAll).
- * Roles are seeded by migration (admin/purchaser/warehouse/auditor/applicant);
- * the backend exposes no create/update/delete, so this page is view-only.
- * Requires a valid JWT; backend enforces no specific role for these reads.
+ * Roles page — read-only list of the fixed role enum (POST /api/roles/selectAll,
+ * paginated). Roles are seeded by migration (admin/purchaser/warehouse/auditor/
+ * applicant); the backend exposes no create/update/delete, so this page is
+ * view-only. Requires a valid JWT; backend enforces no specific role for reads.
  */
 export function RolesPage() {
   const [roles, setRoles] = useState<Role[]>([])
   const [state, setState] = useState<LoadState>('loading')
   const [error, setError] = useState<ApiError | null>(null)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (targetPage = page) => {
     setState('loading')
     setError(null)
     try {
-      const data = await rolesApi.selectAll()
-      setRoles(data)
-      setState(data.length === 0 ? 'empty' : 'ready')
+      const { list, total: t } = await rolesApi.selectAll({ page: targetPage, page_size: PAGE_SIZE })
+      setRoles(list)
+      setTotal(t)
+      setPage(targetPage)
+      setState(list.length === 0 ? 'empty' : 'ready')
     } catch (err) {
       setError(toApiError(err))
       setState('error')
     }
-  }, [])
+  }, [page])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <section className="section">
@@ -65,32 +73,41 @@ export function RolesPage() {
         ) : state === 'empty' ? (
           <p className={styles.muted}>暂无角色数据。</p>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>角色名称</th>
-                  <th>角色代码</th>
-                  <th>说明</th>
-                  <th>创建时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roles.map((r) => (
-                  <tr key={r.id}>
-                    <td className={styles.mono}>{r.id}</td>
-                    <td>
-                      <Tag kind={r.id === 1 ? 'blue' : 'gray'}>{r.name}</Tag>
-                    </td>
-                    <td className={styles.mono}>{r.code}</td>
-                    <td className={styles.desc}>{r.description || '—'}</td>
-                    <td className={styles.mono}>{formatTime(r.created_at)}</td>
+          <>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>角色名称</th>
+                    <th>角色代码</th>
+                    <th>说明</th>
+                    <th>创建时间</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {roles.map((r) => (
+                    <tr key={r.id}>
+                      <td className={styles.mono}>{r.id}</td>
+                      <td>
+                        <Tag kind={r.id === 1 ? 'blue' : 'gray'}>{r.name}</Tag>
+                      </td>
+                      <td className={styles.mono}>{r.code}</td>
+                      <td className={styles.desc}>{r.description || '—'}</td>
+                      <td className={styles.mono}>{formatTime(r.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              loading={false}
+              onChange={(p) => void load(p)}
+            />
+          </>
         )}
       </div>
     </section>

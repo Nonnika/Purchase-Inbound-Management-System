@@ -81,11 +81,19 @@
   margin-left: auto;
 }
 
+/* Current-user name — links to /profile. Mirrors the nav link's gray-30 →
+   white hover so it reads as interactive but stays within the dark chrome. */
 .user {
   font-size: 14px;
   font-weight: 400;
   color: var(--gray-30);
   letter-spacing: 0.16px;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.user:hover {
+  color: var(--white);
+  text-decoration: none;
 }
 
 .logout {

@@ -22,6 +22,9 @@ body {
   font-size: 16px;
   font-weight: 400;
   line-height: 1.5;
+  /* Tabular lining figures everywhere so digits align in columns (prices,
+     quantities, IDs) regardless of whether they render in sans or mono. */
+  font-variant-numeric: tabular-nums lining-nums;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

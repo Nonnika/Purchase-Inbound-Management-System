@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { warehousesApi } from '@/api/warehouses'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
+import { usePagedList } from '@/hooks/usePagedList'
 import type { Warehouse, WarehouseInput } from '@/types/warehouse'
 import { ROLE_ID } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
@@ -10,9 +12,10 @@ import { TextInput } from '@/components/ui/TextInput/TextInput'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { Pagination } from '@/components/ui/Pagination/Pagination'
 import styles from './WarehousesPage.module.css'
 
-type LoadState = 'loading' | 'error' | 'empty' | 'ready'
+const PAGE_SIZE = 10
 
 const emptyForm: WarehouseInput = {
   name: '',
@@ -24,24 +27,28 @@ const emptyForm: WarehouseInput = {
  * (backend/internal/controller/warehouseController.go). Reads need a valid
  * JWT; writes (register/delete/Update*) are admin-gated on the backend.
  * Warehouses have no hierarchy — just name + description.
- * All failures surface as ApiError (HTTP code + short reason).
+ *
+ * The list is server-paginated (POST /warehouses/selectAll). The name search
+ * box is client-side, so while a term is active the page fetches every
+ * warehouse (search mode) and filters locally — otherwise the filter would
+ * only match the current page. All failures surface as ApiError.
  */
 export function WarehousesPage() {
+  const navigate = useNavigate()
   const user = getCurrentUser()
   const roleId = user?.role_id ?? 0
   const canManage = roleId === ROLE_ID.ADMIN
 
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
-  const [state, setState] = useState<LoadState>('loading')
-  const [loadError, setLoadError] = useState<ApiError | null>(null)
-  const [actionError, setActionError] = useState<ApiError | null>(null)
-
-  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
-  const [pendingDelete, setPendingDelete] = useState<Warehouse | null>(null)
-  const [deleting, setDeleting] = useState(false)
-
-  // client-side name search (no selectByName list variant; selectByName returns one)
   const [searchTerm, setSearchTerm] = useState('')
+  const { rows, total, page, loading, error, reload, goToPage } = usePagedList<Warehouse>({
+    loadPage: warehousesApi.selectAll,
+    pageSize: PAGE_SIZE,
+    searchMode: searchTerm.trim() !== '',
+  })
+
+  // delete confirmation — lives inside the edit modal's footer (left side)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // create modal
   const [createOpen, setCreateOpen] = useState(false)
@@ -54,31 +61,16 @@ export function WarehousesPage() {
   const [editError, setEditError] = useState<ApiError | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
+  const [actionError, setActionError] = useState<ApiError | null>(null)
 
-  const loadAll = useCallback(async () => {
-    setState('loading')
-    setLoadError(null)
-    try {
-      const data = await warehousesApi.selectAll()
-      setWarehouses(data)
-      setState(data.length === 0 ? 'empty' : 'ready')
-    } catch (err) {
-      setLoadError(toApiError(err))
-      setState('error')
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadAll()
-  }, [loadAll])
-
+  const isSearch = searchTerm.trim() !== ''
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
-    if (!term) return warehouses
-    return warehouses.filter(
+    if (!term) return rows
+    return rows.filter(
       (w) => w.name.toLowerCase().includes(term) || String(w.id).includes(term),
     )
-  }, [warehouses, searchTerm])
+  }, [rows, searchTerm])
 
   const openCreate = () => {
     setCreateForm({ ...emptyForm })
@@ -102,7 +94,7 @@ export function WarehousesPage() {
         description: normalizeText(createForm.description),
       })
       setCreateOpen(false)
-      void loadAll()
+      reload()
     } catch (err) {
       setCreateError(toApiError(err))
     } finally {
@@ -143,7 +135,7 @@ export function WarehousesPage() {
         await warehousesApi.updateDescriptionById(id, nextDesc)
       }
       closeEdit()
-      void loadAll()
+      reload()
     } catch (err) {
       setEditError(toApiError(err))
     } finally {
@@ -151,21 +143,28 @@ export function WarehousesPage() {
     }
   }
 
-  const handleDelete = (w: Warehouse) => {
+  /** Open the dedicated warehouse detail route (`/warehouses/:id`). */
+  const openDetail = (w: Warehouse) => {
+    navigate(`/warehouses/${w.id}`)
+  }
+
+  // Delete from within the edit modal — confirm, then remove + close + reload.
+  const requestDelete = () => {
     setActionError(null)
-    setPendingDelete(w)
+    setConfirmDeleteOpen(true)
   }
 
   const confirmDelete = async () => {
-    if (!pendingDelete) return
+    if (!editing) return
     setDeleting(true)
     try {
-      await warehousesApi.deleteById(pendingDelete.id)
-      if (editing?.id === pendingDelete.id) closeEdit()
-      setPendingDelete(null)
-      void loadAll()
+      await warehousesApi.deleteById(editing.id)
+      setConfirmDeleteOpen(false)
+      closeEdit()
+      reload()
     } catch (err) {
       setActionError(toApiError(err))
+      setConfirmDeleteOpen(false)
     } finally {
       setDeleting(false)
     }
@@ -185,18 +184,18 @@ export function WarehousesPage() {
                 新增仓库
               </Button>
             )}
-            <Button variant="tertiary" onClick={() => void loadAll()} disabled={state === 'loading'}>
-              {state === 'loading' ? '加载中…' : '刷新'}
+            <Button variant="tertiary" onClick={reload} disabled={loading}>
+              {loading ? '加载中…' : '刷新'}
             </Button>
           </div>
         </div>
 
-        {/* Client-side name search */}
+        {/* Client-side name search — switches to fetch-all mode while active */}
         <div className={styles.searchBarWrap}>
           <input
             className={styles.searchInput}
             type="text"
-            placeholder="按名称或 ID 筛选"
+            placeholder="按名称或 ID 筛选（搜索将遍历全部仓库）"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -208,62 +207,73 @@ export function WarehousesPage() {
           </div>
         )}
 
-        {state === 'error' ? (
+        {error ? (
           <ErrorBanner
-            error={loadError ?? toApiError(new Error('加载失败'))}
+            error={error}
             prefix="无法加载仓库数据"
             action={
-              <Button variant="tertiary" onClick={() => void loadAll()}>
+              <Button variant="tertiary" onClick={reload}>
                 重试
               </Button>
             }
           />
-        ) : state === 'loading' ? (
+        ) : loading ? (
           <p className={styles.muted}>正在加载仓库数据…</p>
         ) : filtered.length === 0 ? (
           <p className={styles.muted}>
-            {warehouses.length === 0
+            {rows.length === 0
               ? canManage
                 ? '暂无仓库数据，点击「新增仓库」创建。'
                 : '暂无仓库数据。'
               : '没有符合筛选条件的仓库。'}
           </p>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>仓库名称</th>
-                  <th>说明</th>
-                  <th>创建时间</th>
-                  {canManage && <th className={styles.actionCol}>操作</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((w) => (
-                  <tr key={w.id}>
-                    <td className={styles.mono}>{w.id}</td>
-                    <td>
-                      <Tag kind="blue">{w.name}</Tag>
-                    </td>
-                    <td className={styles.desc}>{w.description || '—'}</td>
-                    <td className={styles.mono}>{formatTime(w.create_at)}</td>
-                    {canManage && (
-                      <td className={styles.actionCol}>
-                        <Button variant="ghost" onClick={() => openEdit(w)}>
-                          编辑
-                        </Button>
-                        <Button variant="danger" onClick={() => handleDelete(w)}>
-                          删除
-                        </Button>
-                      </td>
-                    )}
+          <>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>仓库名称</th>
+                    <th>说明</th>
+                    <th>创建时间</th>
+                    <th className={styles.actionCol}>操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map((w) => (
+                    <tr key={w.id}>
+                      <td className={styles.mono}>{w.id}</td>
+                      <td>
+                        <Tag kind="blue">{w.name}</Tag>
+                      </td>
+                      <td className={styles.desc}>{w.description || '—'}</td>
+                      <td className={styles.mono}>{formatTime(w.create_at)}</td>
+                      <td className={styles.actionCol}>
+                        <Button variant="ghost" onClick={() => openDetail(w)}>
+                          详情
+                        </Button>
+                        {canManage && (
+                          <Button variant="ghost" onClick={() => openEdit(w)}>
+                            编辑
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!isSearch && (
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={total}
+                loading={loading}
+                onChange={goToPage}
+              />
+            )}
+          </>
         )}
       </div>
 
@@ -309,10 +319,18 @@ export function WarehousesPage() {
         closeOnEscape={false}
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+            <Button
+              variant="danger"
+              style={{ marginRight: 'auto' }}
+              onClick={requestDelete}
+              disabled={submitting || deleting}
+            >
+              删除
+            </Button>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting || deleting}>
               取消
             </Button>
-            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting || deleting}>
               {submitting ? '保存中…' : '保存'}
             </Button>
           </>
@@ -333,21 +351,21 @@ export function WarehousesPage() {
         {editError && <ErrorBanner error={editError} prefix="保存失败" />}
       </Modal>
 
-      {/* Delete confirmation — destructive, explicit action */}
+      {/* Delete confirmation — triggered from the edit modal */}
       <ConfirmDialog
-        open={pendingDelete !== null}
+        open={confirmDeleteOpen}
         title="删除仓库"
         description={
           <>
-            确认删除仓库 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
-            （id={pendingDelete?.id}）？该操作不可撤销。
+            确认删除仓库 <span className="confirmHighlight">「{editing?.name}」</span>
+            （id={editing?.id}）？该操作不可撤销。
           </>
         }
         confirmLabel="删除"
         tone="danger"
         busy={deleting}
         onConfirm={() => void confirmDelete()}
-        onCancel={() => setPendingDelete(null)}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </section>
   )

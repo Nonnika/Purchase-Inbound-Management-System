@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { PageParams, Paginated } from '@/types/pagination'
 import type { AffectedResult } from '@/types/user'
 import type {
   ChainVerifyResult,
@@ -43,7 +44,7 @@ export interface AppendEventInput {
  *   POST /api/orders/auditReject        (admin/auditor)   -> OrderEvent
  *   POST /api/orders/warehouseReceive   (admin/warehouse) -> OrderEvent
  *   POST /api/orders/warehouseShip      (admin/warehouse) -> OrderEvent
- *   GET  /api/orders/selectAll          (admin/auditor/warehouse) -> Order[]
+ *   POST /api/orders/selectAll          (admin/auditor/warehouse) (body {page, page_size} -> {list, total})
  *   GET  /api/orders/selectById?id=                            -> Order
  *   GET  /api/orders/selectByUserId?user_id=                   -> Order[]
  *   GET  /api/orders/events?order_id=                          -> OrderEvent[]
@@ -108,8 +109,14 @@ export const ordersApi = {
       .then((res) => res.data)
   },
 
-  selectAll(): Promise<Order[]> {
-    return apiClient.get<Order[]>('/orders/selectAll').then((res) => res.data)
+  /**
+   * Paginated order list (admin/auditor/warehouse). POST `{ page, page_size }`
+   * -> `{ list, total }` (rows ordered by id desc).
+   */
+  selectAll(params: PageParams = {}): Promise<Paginated<Order>> {
+    return apiClient
+      .post<Paginated<Order>>('/orders/selectAll', params)
+      .then((res) => res.data)
   },
 
   selectById(id: number): Promise<Order> {

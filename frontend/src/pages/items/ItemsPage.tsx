@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { itemsApi } from '@/api/items'
 import { warehousesApi } from '@/api/warehouses'
 import { itemCategoriesApi } from '@/api/itemCategories'
+import { fetchAll } from '@/api/pagination'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
+import { usePagedList } from '@/hooks/usePagedList'
 import type { Item, ItemInput, ItemUpdate } from '@/types/item'
 import type { Warehouse } from '@/types/warehouse'
 import type { ItemCategory } from '@/types/itemCategory'
@@ -13,10 +16,11 @@ import { Tag } from '@/components/ui/Tag/Tag'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { Pagination } from '@/components/ui/Pagination/Pagination'
 import { ItemFormFields } from './ItemFormFields'
 import styles from './ItemsPage.module.css'
 
-type LoadState = 'loading' | 'error' | 'empty' | 'ready'
+const PAGE_SIZE = 10
 
 const emptyForm: ItemInput = {
   name: '',
@@ -32,21 +36,29 @@ const emptyForm: ItemInput = {
  * Items page — list + create + edit + delete over the item catalog
  * (backend/internal/controller/itemController.go). Reads need a valid JWT
  * (any authenticated role); `create` is purchaser/admin-gated; `update`/`delete`
- * are manager-gated (admin/warehouse/auditor) on the backend. Name search is
- * client-side (no selectByName endpoint exists).
+ * are manager-gated (admin/warehouse/auditor) on the backend.
+ *
+ * The list is server-paginated (POST /items/selectAll). The name/id search is
+ * client-side, so while a term is active the page fetches every item (search
+ * mode) and filters locally. Category/warehouse pickers load the full sets via
+ * `fetchAll` (small tables, needed for dropdowns + name resolution).
  *
  * All failures surface as ApiError (HTTP code + short reason).
  */
 export function ItemsPage() {
+  const navigate = useNavigate()
   const user = getCurrentUser()
   const roleId = user?.role_id ?? 0
   const canCreate = roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.PURCHASER
   const canManage =
     roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.WAREHOUSE || roleId === ROLE_ID.AUDITOR
 
-  const [items, setItems] = useState<Item[]>([])
-  const [state, setState] = useState<LoadState>('loading')
-  const [loadError, setLoadError] = useState<ApiError | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const { rows, total, page, loading, error, reload, goToPage } = usePagedList<Item>({
+    loadPage: itemsApi.selectAll,
+    pageSize: PAGE_SIZE,
+    searchMode: searchTerm.trim() !== '',
+  })
 
   // warehouses + categories for the create-form pickers and table name resolution
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -62,8 +74,25 @@ export function ItemsPage() {
     return m
   }, [categories])
 
-  // client-side name search
-  const [searchTerm, setSearchTerm] = useState('')
+  // Pickers + name resolution — load once (full set). Non-fatal on failure:
+  // the selects stay empty and the table falls back to raw ids.
+  useEffect(() => {
+    void fetchAll(warehousesApi.selectAll)
+      .then(setWarehouses)
+      .catch(() => undefined)
+    void fetchAll(itemCategoriesApi.selectAll)
+      .then(setCategories)
+      .catch(() => undefined)
+  }, [])
+
+  const isSearch = searchTerm.trim() !== ''
+  const filtered = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return rows
+    return rows.filter(
+      (it) => it.name.toLowerCase().includes(term) || String(it.id).includes(term),
+    )
+  }, [rows, searchTerm])
 
   // create modal
   const [createOpen, setCreateOpen] = useState(false)
@@ -79,39 +108,9 @@ export function ItemsPage() {
   // transient action error (e.g. delete) shown inline above the table
   const [actionError, setActionError] = useState<ApiError | null>(null)
 
-  // delete confirmation — native confirm replaced with a Carbon ConfirmDialog
-  const [pendingDelete, setPendingDelete] = useState<Item | null>(null)
+  // delete confirmation — triggered from the edit modal's footer
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-
-  const loadAll = useCallback(async () => {
-    setState('loading')
-    setLoadError(null)
-    try {
-      const data = await itemsApi.selectAll()
-      setItems(data)
-      setState(data.length === 0 ? 'empty' : 'ready')
-    } catch (err) {
-      setLoadError(toApiError(err))
-      setState('error')
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadAll()
-    // Pickers + table name resolution — load once. Non-fatal on failure: the
-    // selects just stay empty and the table falls back to raw ids.
-    void warehousesApi.selectAll().then(setWarehouses).catch(() => undefined)
-    void itemCategoriesApi.selectAll().then(setCategories).catch(() => undefined)
-  }, [loadAll])
-
-  const filtered = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
-    if (!term) return items
-    return items.filter(
-      (it) =>
-        it.name.toLowerCase().includes(term) || String(it.id).includes(term),
-    )
-  }, [items, searchTerm])
 
   const openCreate = () => {
     setForm({ ...emptyForm })
@@ -175,7 +174,7 @@ export function ItemsPage() {
         name: form.name.trim(),
       })
       setCreateOpen(false)
-      void loadAll()
+      reload()
     } catch (err) {
       setFormError(toApiError(err))
     } finally {
@@ -258,7 +257,7 @@ export function ItemsPage() {
     try {
       await itemsApi.update(editing.id, patch)
       closeEdit()
-      void loadAll()
+      reload()
     } catch (err) {
       setEditError(toApiError(err))
     } finally {
@@ -266,20 +265,23 @@ export function ItemsPage() {
     }
   }
 
-  const handleDelete = (item: Item) => {
+  // Delete from within the edit modal — confirm, then remove + close + reload.
+  const requestDelete = () => {
     setActionError(null)
-    setPendingDelete(item)
+    setConfirmDeleteOpen(true)
   }
 
   const confirmDelete = async () => {
-    if (!pendingDelete) return
+    if (!editing) return
     setDeleting(true)
     try {
-      await itemsApi.delete(pendingDelete.id)
-      setPendingDelete(null)
-      void loadAll()
+      await itemsApi.delete(editing.id)
+      setConfirmDeleteOpen(false)
+      closeEdit()
+      reload()
     } catch (err) {
       setActionError(toApiError(err))
+      setConfirmDeleteOpen(false)
     } finally {
       setDeleting(false)
     }
@@ -299,18 +301,18 @@ export function ItemsPage() {
                 新增物品
               </Button>
             )}
-            <Button variant="tertiary" onClick={() => void loadAll()} disabled={state === 'loading'}>
-              {state === 'loading' ? '加载中…' : '刷新'}
+            <Button variant="tertiary" onClick={reload} disabled={loading}>
+              {loading ? '加载中…' : '刷新'}
             </Button>
           </div>
         </div>
 
-        {/* Search bar — client-side name/id filter */}
+        {/* Search bar — client-side name/id filter (searches all items) */}
         <div className={styles.searchBar}>
           <input
             className={styles.searchInput}
             type="text"
-            placeholder="按名称或 ID 筛选"
+            placeholder="按名称或 ID 筛选（搜索将遍历全部物品）"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -323,100 +325,109 @@ export function ItemsPage() {
         )}
 
         {/* Body */}
-        {state === 'error' ? (
+        {error ? (
           <ErrorBanner
-            error={loadError ?? toApiError(new Error('加载失败'))}
+            error={error}
             prefix="无法加载物品数据"
             action={
-              <Button variant="tertiary" onClick={() => void loadAll()}>
+              <Button variant="tertiary" onClick={reload}>
                 重试
               </Button>
             }
           />
-        ) : state === 'loading' ? (
+        ) : loading ? (
           <p className={styles.muted}>正在加载物品数据…</p>
         ) : filtered.length === 0 ? (
           <p className={styles.muted}>
-            {items.length === 0
+            {rows.length === 0
               ? canCreate
                 ? '暂无物品数据，点击「新增物品」创建。'
                 : '暂无物品数据。'
               : '没有符合筛选条件的物品。'}
           </p>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>名称</th>
-                  <th>单价</th>
-                  <th>可用库存</th>
-                  <th>分类</th>
-                  <th>仓库</th>
-                  <th>预警阈值</th>
-                  <th>创建时间</th>
-                  {canManage && <th>操作</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((it) => {
-                  // available = on-hand stock minus what an audit-approved
-                  // outbound order has frozen (orderDao.freezeOutboundInventory).
-                  // Using item_inventory directly here would overstate stock and
-                  // suppress the low-inventory warning below.
-                  const total = it.item_inventory ?? 0
-                  const frozen = it.frozen_inventory ?? 0
-                  const available = total - frozen
-                  const low = it.warning_level != null && available <= it.warning_level
-                  return (
-                    <tr key={it.id}>
-                      <td className={styles.mono}>{it.id}</td>
-                      <td>{it.name}</td>
-                      <td className={styles.mono}>{it.price != null ? `¥${it.price}` : '—'}</td>
-                      <td>
-                        <div className={styles.inv}>
-                          <span className={[styles.mono, low ? styles.invLow : ''].filter(Boolean).join(' ')}>
-                            {available}
-                            {low ? ' · 库存不足' : ''}
-                          </span>
-                          {frozen > 0 && <span className={styles.invFrozen}>冻结 {frozen}</span>}
-                        </div>
-                      </td>
-                      <td>
-                        {it.category_id != null
-                          ? categoryName.get(it.category_id) ?? `#${it.category_id}`
-                          : '—'}
-                      </td>
-                      <td>
-                        {it.warehouse_id != null
-                          ? warehouseName.get(it.warehouse_id) ?? `#${it.warehouse_id}`
-                          : '—'}
-                      </td>
-                      <td className={styles.mono}>
-                        {it.warning_level != null ? (
-                          <Tag kind={low ? 'red' : 'gray'}>{it.warning_level}</Tag>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className={styles.mono}>{formatTime(it.created_at)}</td>
-                      {canManage && (
+          <>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>单价</th>
+                    <th>可用库存</th>
+                    <th>分类</th>
+                    <th>仓库</th>
+                    <th>预警阈值</th>
+                    <th>创建时间</th>
+                    <th className={styles.actionCol}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((it) => {
+                    // available = on-hand stock minus what an audit-approved
+                    // outbound order has frozen (orderDao.freezeOutboundInventory).
+                    const total = it.item_inventory ?? 0
+                    const frozen = it.frozen_inventory ?? 0
+                    const available = total - frozen
+                    const low = it.warning_level != null && available <= it.warning_level
+                    return (
+                      <tr key={it.id}>
+                        <td className={styles.mono}>{it.id}</td>
+                        <td>{it.name}</td>
+                        <td className={styles.mono}>{it.price != null ? `¥${it.price}` : '—'}</td>
                         <td>
-                          <Button variant="ghost" onClick={() => openEdit(it)}>
-                            编辑
-                          </Button>
-                          <Button variant="danger" onClick={() => handleDelete(it)}>
-                            删除
-                          </Button>
+                          <div className={styles.inv}>
+                            <span className={[styles.mono, low ? styles.invLow : ''].filter(Boolean).join(' ')}>
+                              {available}
+                              {low ? ' · 库存不足' : ''}
+                            </span>
+                            {frozen > 0 && <span className={styles.invFrozen}>冻结 {frozen}</span>}
+                          </div>
                         </td>
-                      )}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td>
+                          {it.category_id != null
+                            ? categoryName.get(it.category_id) ?? `#${it.category_id}`
+                            : '—'}
+                        </td>
+                        <td>
+                          {it.warehouse_id != null
+                            ? warehouseName.get(it.warehouse_id) ?? `#${it.warehouse_id}`
+                            : '—'}
+                        </td>
+                        <td className={styles.mono}>
+                          {it.warning_level != null ? (
+                            <Tag kind={low ? 'red' : 'gray'}>{it.warning_level}</Tag>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className={styles.mono}>{formatTime(it.created_at)}</td>
+                        <td className={styles.actionCol}>
+                          <Button variant="ghost" onClick={() => navigate(`/items/${it.id}`)}>
+                            详情
+                          </Button>
+                          {canManage && (
+                            <Button variant="ghost" onClick={() => openEdit(it)}>
+                              编辑
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {!isSearch && (
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={total}
+                loading={loading}
+                onChange={goToPage}
+              />
+            )}
+          </>
         )}
       </div>
 
@@ -458,10 +469,18 @@ export function ItemsPage() {
         closeOnEscape={false}
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={submitting}>
+            <Button
+              variant="danger"
+              style={{ marginRight: 'auto' }}
+              onClick={requestDelete}
+              disabled={submitting || deleting}
+            >
+              删除
+            </Button>
+            <Button variant="ghost" onClick={closeEdit} disabled={submitting || deleting}>
               取消
             </Button>
-            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting}>
+            <Button variant="primary" onClick={() => void submitEdit()} disabled={submitting || deleting}>
               {submitting ? '保存中…' : '保存'}
             </Button>
           </>
@@ -478,21 +497,21 @@ export function ItemsPage() {
         />
       </Modal>
 
-      {/* Delete confirmation — destructive, explicit action */}
+      {/* Delete confirmation — triggered from the edit modal */}
       <ConfirmDialog
-        open={pendingDelete !== null}
+        open={confirmDeleteOpen}
         title="删除物品"
         description={
           <>
-            确认删除物品 <span className="confirmHighlight">「{pendingDelete?.name}」</span>
-            （id={pendingDelete?.id}）？该操作不可撤销。
+            确认删除物品 <span className="confirmHighlight">「{editing?.name}」</span>
+            （id={editing?.id}）？该操作不可撤销。
           </>
         }
         confirmLabel="删除"
         tone="danger"
         busy={deleting}
         onConfirm={() => void confirmDelete()}
-        onCancel={() => setPendingDelete(null)}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </section>
   )
@@ -523,4 +542,3 @@ function diffItem(original: Item, next: ItemInput): ItemUpdate {
   if (next.warning_level !== original.warning_level) patch.warning_level = next.warning_level
   return patch
 }
-

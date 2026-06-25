@@ -1,11 +1,12 @@
 import { apiClient } from './client'
+import type { PageParams, Paginated } from '@/types/pagination'
 import type { AffectedResult, User, UserInput } from '@/types/user'
 
 /**
  * User API — wraps the endpoints exposed by the Go/Gin backend
  * (see backend/internal/controller/userController.go RegisterAuthRouter).
  * All routes below require a valid admin JWT (attached by the client interceptor):
- *   GET    /api/users/selectAll
+ *   POST   /api/users/selectAll        (body {page, page_size} -> {list, total})
  *   GET    /api/users/selectById?id=<int>
  *   GET    /api/users/selectByUserName?user_name=<string>   (note: user_name, not username)
  *   DELETE /api/users/deleteById?id=<int>                    -> { affected }
@@ -24,8 +25,14 @@ import type { AffectedResult, User, UserInput } from '@/types/user'
  * carrying the HTTP status, a stable code, a short reason, and the backend detail.
  */
 export const usersApi = {
-  selectAll(): Promise<User[]> {
-    return apiClient.get<User[]>('/users/selectAll').then((res) => res.data)
+  /**
+   * Paginated user list. POST with `{ page, page_size }`; the backend returns
+   * `{ list, total }` (rows ordered by id desc). Defaults to page 1 / size 10.
+   */
+  selectAll(params: PageParams = {}): Promise<Paginated<User>> {
+    return apiClient
+      .post<Paginated<User>>('/users/selectAll', params)
+      .then((res) => res.data)
   },
 
   selectById(id: number): Promise<User> {
