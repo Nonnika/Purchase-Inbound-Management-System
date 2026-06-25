@@ -21,6 +21,22 @@ func (i *ItemDao) SelectAll() ([]model.Item, error) {
 	return items, err
 }
 
+func (i *ItemDao) SelectPricesAndInventory(warehouseId int64) ([]model.Item, error) {
+	var items []model.Item
+	if warehouseId == 0 {
+		err := i.DB.Select(&items, "SELECT * FROM items")
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := i.DB.Select(&items, "SELECT * FROM items where warehouse_id = ?", warehouseId)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return items, nil
+}
+
 func (i *ItemDao) SelectPage(page, pageSize int64) ([]model.Item, int64, error) {
 	items := make([]model.Item, 0)
 	err := i.DB.Select(&items, `

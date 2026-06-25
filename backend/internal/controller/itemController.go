@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nonnika/pims/internal/database/dao"
@@ -255,6 +256,38 @@ func (i *ItemController) Delete(ctx *gin.Context) {
 	})
 }
 
+func (i *ItemController) CalSum(ctx *gin.Context) {
+	_id := ctx.Query("id")
+	id, err := strconv.Atoi(_id)
+	if err != nil {
+		log.Printf("Error from CalSum : %s \n", err.Error())
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "bad number",
+		})
+		return
+	}
+	items, err := i.dao.SelectPricesAndInventory(int64(id))
+	if err != nil {
+		log.Println("Error from CalSum : ", err.Error())
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "server internal error",
+		})
+		return
+	}
+	var sum float64 = 0
+	for _, val := range items {
+		if val.Price != nil && val.ItemInventory != nil {
+			sum += *val.Price * float64(*val.ItemInventory)
+		}
+	}
+	ctx.JSON(
+		http.StatusOK, gin.H{
+			"sum": sum,
+		},
+	)
+	return
+}
+
 func (i *ItemController) RegisterAuthRouter(r *gin.RouterGroup) {
 	purchaser := middleware.Role(model.RoleAdmin, model.RolePurchaser)
 	manager := middleware.Role(model.RoleAdmin, model.RoleWarehouse, model.RoleAuditor)
@@ -264,6 +297,7 @@ func (i *ItemController) RegisterAuthRouter(r *gin.RouterGroup) {
 	r.POST("/items/create", purchaser, i.Create)
 	r.POST("/items/update", manager, i.Update)
 	r.DELETE("/items/delete", manager, i.Delete)
+	r.GET("/items/CalSum", i.CalSum)
 }
 
 func normalizeOptionalInt64(value *int64) *int64 {
