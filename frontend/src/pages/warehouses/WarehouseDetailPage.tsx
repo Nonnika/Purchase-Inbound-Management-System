@@ -168,21 +168,29 @@ export function WarehouseDetailPage() {
           <>
             {/* Inventory total value — full-width highlight tile, above the grid.
                 Server-authoritative (CalSum, Σ price × item_inventory, includes
-                frozen); falls back to the client Σ when the call failed. */}
+                frozen); falls back to the client Σ when the call failed. The
+                Chinese-uppercase amount sits under the figure, aligned with the
+                left hint line. */}
             <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
-              <div>
+              <div className={styles.valueTileLeft}>
                 <div className={`${styles.statLabel} ${styles.largeLabel}`}>在库总货值</div>
                 <div className={styles.valueTileHint}>含冻结库存</div>
               </div>
-              <div className={styles.valueTileFigure}>{formatCurrency(cargoTotal)}</div>
+              <div className={styles.valueTileRight}>
+                <div className={styles.valueTileFigure}>{formatCurrency(cargoTotal)}</div>
+                <div className={styles.valueTileChinese}>{formatChineseCurrency(cargoTotal)}</div>
+              </div>
             </div>
 
             <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
-              <div>
+              <div className={styles.valueTileLeft}>
                 <div className={`${styles.statLabel} ${styles.largeLabel}`}>可用总货值</div>
                 <div className={styles.valueTileHint}>不含冻结库存</div>
               </div>
-              <div className={styles.valueTileFigure}>{formatCurrency(stats.availableValue)}</div>
+              <div className={styles.valueTileRight}>
+                <div className={styles.valueTileFigure}>{formatCurrency(stats.availableValue)}</div>
+                <div className={styles.valueTileChinese}>{formatChineseCurrency(stats.availableValue)}</div>
+              </div>
             </div>
 
             {/* Summary stat tiles */}
@@ -316,4 +324,81 @@ function formatCurrency(value: number): string {
 function formatPercent(fraction: number): string {
   if (!Number.isFinite(fraction)) return '—'
   return `${(fraction * 100).toFixed(2)}%`
+}
+
+const CN_DIGITS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+const CN_INT_UNITS = ['', '拾', '佰', '仟']
+const CN_INT_SECTIONS = ['', '万', '亿', '兆']
+
+/**
+ * Convert a non-negative currency amount to Chinese uppercase (财务大写),
+ * e.g. 1234.56 -> "人民币壹仟贰佰叁拾肆元伍角陆分". Returns '—' for invalid
+ * input and handles 0 (零元整) and integer amounts (…元整) per accounting
+ * convention. This is the standard ¥-amount-to-words transform used on invoices.
+ */
+function formatChineseCurrency(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '—'
+  if (value === 0) return '人民币零元整'
+
+  // Split into integer and (up to 2) fractional digits — round to cents.
+  const rounded = Math.round(value * 100)
+  const intPart = Math.floor(rounded / 100)
+  const fen = rounded % 100
+  const jiao = Math.floor(fen / 10)
+  const cent = fen % 10
+
+  // Integer section -> Chinese, grouped in 4-digit sections (万/亿/兆).
+  let intStr = ''
+  if (intPart === 0) {
+    intStr = ''
+  } else {
+    let n = intPart
+    let sectionIdx = 0
+    const sections: string[] = []
+    while (n > 0) {
+      const section = n % 10000
+      n = Math.floor(n / 10000)
+      let sectionStr = ''
+      let zero = false
+      for (let i = 0; i < 4; i++) {
+        const d = Math.floor(section / Math.pow(10, 3 - i)) % 10
+        if (d === 0) {
+          zero = true
+        } else {
+          if (zero) {
+            sectionStr += '零'
+            zero = false
+          }
+          sectionStr += CN_DIGITS[d] + CN_INT_UNITS[3 - i]
+        }
+      }
+      if (sectionStr === '') {
+        // entire section is zero — keep a trailing zero flag for the next section
+      } else {
+        sectionStr += CN_INT_SECTIONS[sectionIdx]
+      }
+      sections.unshift(sectionStr)
+      sectionIdx++
+    }
+    intStr = sections.join('')
+    // Collapse a redundant leading 零 carried from an all-zero higher section.
+    intStr = intStr.replace(/^零+/, '')
+  }
+
+  let result = '人民币'
+  if (intStr) result += intStr + '元'
+  else result += '零元' // fractional-only amount, e.g. 0.50 -> 人民币零元伍角
+
+  if (jiao === 0 && cent === 0) {
+    result += '整'
+  } else {
+    if (jiao === 0) {
+      // When the 角 digit is 0 but there are 分, emit 零 before 分 (e.g. …元零伍分).
+      result += '零'
+    } else {
+      result += CN_DIGITS[jiao] + '角'
+    }
+    if (cent !== 0) result += CN_DIGITS[cent] + '分'
+  }
+  return result
 }
