@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/Select/Select'
 import type { SelectOption } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
+import { TreeIndent } from '@/components/ui/TreeIndent/TreeIndent'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './DepartmentsPage.module.css'
 
@@ -27,6 +28,17 @@ interface FlatRow {
   depth: number
 }
 
+/** A tree row after collapse filtering, carrying the guide-line metadata. */
+interface VisibleRow {
+  dept: Department
+  depth: number
+  /** guides[k] = ancestor at depth k has a following sibling (draws a │). */
+  guides: boolean[]
+  isLast: boolean
+  hasChildren: boolean
+  expanded: boolean
+}
+
 const emptyForm: DepartmentInput = {
   name: '',
   description: '',
@@ -39,8 +51,9 @@ const emptyForm: DepartmentInput = {
  * JWT; writes (register/delete/Update*) are admin-gated on the backend.
  *
  * Departments form a tree via the nullable `parent` field (null/0 = root).
- * The list is rendered as an indented tree; create/edit happen in modals.
- * All failures surface as ApiError (HTTP code + short reason).
+ * The list renders as a collapsible tree (guide lines + ▶/▼ chevrons) so the
+ * parent-child hierarchy is explicit; create/edit happen in modals. All
+ * failures surface as ApiError (HTTP code + short reason).
  */
 export function DepartmentsPage() {
   const navigate = useNavigate()
@@ -54,6 +67,10 @@ export function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
+  // Collapsed node ids (default: none → fully expanded tree). Toggling a node
+  // hides its descendants from the table; the parent-picker still sees every
+  // node via the full flatten, so collapsed subtrees remain selectable as parents.
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set())
 
   // transient action error shown inline below the toolbar
   const [actionError, setActionError] = useState<ApiError | null>(null)
@@ -95,12 +112,20 @@ export function DepartmentsPage() {
   // Tree built from the flat list. Roots = parent is null OR points to a
   // missing id (defensive: an orphaned parent reference is shown as a root).
   const tree = useMemo(() => buildTree(departments), [departments])
+  // Full depth-first flatten — used by the parent picker (every node must stay
+  // selectable as a parent even when its subtree is collapsed in the table).
   const rows = useMemo(() => flatten(tree), [tree])
-  const nameById = useMemo(() => {
-    const m = new Map<number, string>()
-    departments.forEach((d) => m.set(d.id, d.name))
-    return m
-  }, [departments])
+  // Collapse-filtered rows for the table, carrying guide-line metadata.
+  const visibleRows = useMemo(() => walkVisible(tree, collapsed), [tree, collapsed])
+
+  const toggle = useCallback((id: number) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
 
   const openCreate = () => {
     setCreateForm({ ...emptyForm })
@@ -269,34 +294,50 @@ export function DepartmentsPage() {
                   <th>ID</th>
                   <th>部门名称</th>
                   <th>说明</th>
-                  <th>上级部门</th>
                   <th>创建时间</th>
                   <th className={styles.actionCol}>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ dept, depth }) => (
-                  <tr key={dept.id}>
-                    <td className={styles.mono}>{dept.id}</td>
-                    <td>
-                      <span className={styles.nameCell}>
-                        {Array.from({ length: depth }).map((_, i) => (
-                          <span key={i} className={styles.indent} aria-hidden="true" />
-                        ))}
-                        <Tag kind={depth === 0 ? 'blue' : 'gray'}>{dept.name}</Tag>
-                      </span>
+                {visibleRows.map((row) => (
+                  <tr
+                    key={row.dept.id}
+                    className={row.hasChildren ? styles.clickableRow : undefined}
+                    onClick={row.hasChildren ? () => toggle(row.dept.id) : undefined}
+                  >
+                    <td className={styles.mono}>{row.dept.id}</td>
+                    <td className={styles.nameTd}>
+                      <TreeIndent
+                        depth={row.depth}
+                        guides={row.guides}
+                        isLast={row.isLast}
+                        hasChildren={row.hasChildren}
+                        expanded={row.expanded}
+                        onToggle={() => toggle(row.dept.id)}
+                      >
+                        <Tag kind={row.depth === 0 ? 'blue' : 'gray'}>{row.dept.name}</Tag>
+                      </TreeIndent>
                     </td>
-                    <td className={styles.desc}>{dept.description || '—'}</td>
-                    <td className={styles.mono}>
-                      {dept.parent == null ? '—' : nameById.get(dept.parent) ?? `#${dept.parent}`}
-                    </td>
-                    <td className={styles.mono}>{formatTime(dept.created_at)}</td>
+                    <td className={styles.desc}>{row.dept.description || '—'}</td>
+                    <td className={styles.mono}>{formatTime(row.dept.created_at)}</td>
                     <td className={styles.actionCol}>
-                      <Button variant="ghost" onClick={() => navigate(`/departments/${dept.id}`)}>
+                      <Button
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/departments/${row.dept.id}`)
+                        }}
+                      >
                         详情
                       </Button>
                       {canManage && (
-                        <Button variant="ghost" onClick={() => openEdit(dept)}>
+                        <Button
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEdit(row.dept)
+                          }}
+                        >
                           编辑
                         </Button>
                       )}
@@ -448,6 +489,32 @@ function flatten(nodes: DeptNode[], depth = 0, acc: FlatRow[] = []): FlatRow[] {
     acc.push({ dept: n, depth })
     flatten(n.children, depth + 1, acc)
   }
+  return acc
+}
+
+/**
+ * Depth-first walk that skips the descendants of collapsed nodes, producing the
+ * visible table rows. Each row carries the guide-line metadata `TreeIndent`
+ * needs: `guides[k]` is true when the ancestor at depth `k` has a following
+ * sibling (a │ runs through this row at column k), and `isLast` picks the elbow
+ * shape (└ vs ├). The `guides` array is threaded down the recursion — entering
+ * a node's children appends `!isLast` (that node has a following sibling).
+ */
+function walkVisible(
+  nodes: DeptNode[],
+  collapsed: Set<number>,
+  guides: boolean[] = [],
+  acc: VisibleRow[] = [],
+): VisibleRow[] {
+  nodes.forEach((n, i) => {
+    const isLast = i === nodes.length - 1
+    const hasChildren = n.children.length > 0
+    const expanded = !collapsed.has(n.id)
+    acc.push({ dept: n, depth: guides.length, guides: [...guides], isLast, hasChildren, expanded })
+    if (hasChildren && expanded) {
+      walkVisible(n.children, collapsed, [...guides, !isLast], acc)
+    }
+  })
   return acc
 }
 

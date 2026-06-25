@@ -1,0 +1,92 @@
+/* TreeIndent — guide lines + elbow + chevron for a tree-table row.
+ * Carbon: hairline `--cds-border-tile` lines (the same border used everywhere),
+ * 0px radius, no new colors, 8px-grid slot = --space-05. Lines are absolutely
+ * positioned to span the full cell height so they connect across rows; the
+ * content (chevron + label) sits above them in normal flow.
+ */
+
+/* Absolute layer covering the cell's full height; the parent <td> is the
+   positioning context (the page sets `position: relative` on it). `left` lines
+   up with the cell's content box (padding-left = --space-05) so the slot grid
+   starts where the text would. */
+.guideLayer {
+  position: absolute;
+  left: var(--space-05);
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* A vertical guide line at a slot center (set via inline `left`). Full height
+   connects it to the rows above/below. */
+.guideLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--cds-border-tile);
+}
+
+/* Elbow connector at the parent column. The vertical is full height when the
+   line continues (`.elbow`), or stops at the vertical middle when this is the
+   terminating child (`.elbowLast` → bottom: 50%). The horizontal stub reaches
+   from the parent column to the chevron column. */
+.elbow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--cds-border-tile);
+}
+.elbow::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: var(--space-05);
+  border-top: 1px solid var(--cds-border-tile);
+}
+.elbowLast {
+  bottom: 50%;
+}
+
+/* In-flow content (chevron + label), kept above the guide layer. */
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-03);
+}
+
+/* +/− expand badge — a small square chip (gray-20 surface, secondary glyph)
+   that mirrors the whole-row toggle. Fixed footprint so leaf spacers keep
+   labels aligned. 0px radius, no new colors. */
+.badge {
+  flex: 0 0 var(--space-05);
+  width: var(--space-05);
+  height: var(--space-05);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--gray-20);
+  border: none;
+  border-radius: 0;
+  color: var(--cds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.badge:hover {
+  background: var(--gray-30);
+  color: var(--cds-text-primary);
+}
+
+/* Empty spacer matching the badge footprint for leaf rows. */
+.badgeSpacer {
+  flex: 0 0 var(--space-05);
+  width: var(--space-05);
+}
