@@ -24,7 +24,12 @@ type LoadState = 'loading' | 'error' | 'empty' | 'ready'
  * /items/selectAll (open to any authenticated role) and filtered client-side
  * by warehouse_id. Available stock = item_inventory - frozen_inventory
  * (frozen is held by audit-approved outbound orders — same definition as
- * ItemsPage). Total value = Σ(available × price) over priced items.
+ * ItemsPage).
+ *
+ * Cargo value comes from the server-authoritative `GET /items/CalSum?id=`
+ * (Σ price × item_inventory, includes frozen) shown as the headline 在库总货值;
+ * if that call fails we fall back to the same Σ computed client-side. The
+ * 可用货值 grid tile is the frozen-adjusted value Σ(available × price).
  */
 export function WarehouseDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -36,6 +41,9 @@ export function WarehouseDetailPage() {
   const [categories, setCategories] = useState<ItemCategory[]>([])
   // Total item count across ALL warehouses — used for the cargo share stat.
   const [allItemCount, setAllItemCount] = useState(0)
+  // Server-authoritative cargo value (CalSum). null until the fetch settles
+  // (or on failure — then we fall back to the client-computed stockValue).
+  const [cargoValue, setCargoValue] = useState<number | null>(null)
   const [state, setState] = useState<LoadState>('loading')
   const [error, setError] = useState<ApiError | null>(null)
 
@@ -49,16 +57,19 @@ export function WarehouseDetailPage() {
     setError(null)
     try {
       // Warehouse via selectAll + match (no admin-gated selectById needed);
-      // items + categories via their open reads. All resolve together.
-      const [allWarehouses, allItems, allCats] = await Promise.all([
+      // items + categories via their open reads. CalSum is the server-side
+      // cargo value for this warehouse (non-fatal — falls back to client Σ).
+      const [allWarehouses, allItems, allCats, sum] = await Promise.all([
         fetchAll(warehousesApi.selectAll),
         fetchAll(itemsApi.selectAll),
         fetchAll(itemCategoriesApi.selectAll).catch(() => [] as ItemCategory[]),
+        itemsApi.calSum(warehouseId).catch(() => null),
       ])
       const wh = allWarehouses.find((w) => w.id === warehouseId) ?? null
       setWarehouse(wh)
       setCategories(allCats)
       setAllItemCount(allItems.length)
+      setCargoValue(sum)
       if (!wh) {
         setError(new ApiError({ code: 'NOT_FOUND', status: 404, reason: '资源不存在', detail: '仓库不存在' }))
         setState('error')
@@ -83,13 +94,16 @@ export function WarehouseDetailPage() {
     return m
   }, [categories])
 
-  // Aggregate stats. totalValue counts only items with a price set.
+  // Aggregate stats. availableValue = Σ(available × price) (frozen-adjusted);
+  // stockValue = Σ(item_inventory × price), the same definition as the backend
+  // CalSum, used as a fallback when the server sum is unavailable.
   // cargoShare = this warehouse's item-kind count as a fraction of all items
   // across every warehouse (0..1); 0 when there are no items anywhere.
   const stats = useMemo(() => {
     let totalInventory = 0
     let totalFrozen = 0
-    let totalValue = 0
+    let availableValue = 0
+    let stockValue = 0
     let lowCount = 0
     items.forEach((it) => {
       const total = it.item_inventory ?? 0
@@ -97,14 +111,20 @@ export function WarehouseDetailPage() {
       const available = total - frozen
       totalInventory += total
       totalFrozen += frozen
-      if (it.price != null) totalValue += available * it.price
+      if (it.price != null) {
+        availableValue += available * it.price
+        stockValue += total * it.price
+      }
       if (it.warning_level != null && available <= it.warning_level) lowCount += 1
     })
     const cargoShare = allItemCount > 0 ? items.length / allItemCount : 0
-    return { totalInventory, totalFrozen, totalValue, lowCount, cargoShare }
+    return { totalInventory, totalFrozen, availableValue, stockValue, lowCount, cargoShare }
   }, [items, allItemCount])
 
   const availableTotal = stats.totalInventory - stats.totalFrozen
+  // Headline cargo value: prefer the server-authoritative CalSum, fall back to
+  // the client-computed Σ price × item_inventory when the call failed.
+  const cargoTotal = cargoValue ?? stats.stockValue
 
   return (
     <section className="section">
@@ -146,10 +166,23 @@ export function WarehouseDetailPage() {
           <p className={styles.muted}>正在加载仓库详情…</p>
         ) : (
           <>
-            {/* Inventory total value — full-width highlight tile, above the grid */}
+            {/* Inventory total value — full-width highlight tile, above the grid.
+                Server-authoritative (CalSum, Σ price × item_inventory, includes
+                frozen); falls back to the client Σ when the call failed. */}
             <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
-              <div className={`${styles.statLabel} ${styles.largeLabel}`}>库存总值</div>
-              <div className={styles.valueTileFigure}>{formatCurrency(stats.totalValue)}</div>
+              <div>
+                <div className={`${styles.statLabel} ${styles.largeLabel}`}>在库总货值</div>
+                <div className={styles.valueTileHint}>含冻结库存</div>
+              </div>
+              <div className={styles.valueTileFigure}>{formatCurrency(cargoTotal)}</div>
+            </div>
+
+            <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
+              <div>
+                <div className={`${styles.statLabel} ${styles.largeLabel}`}>可用总货值</div>
+                <div className={styles.valueTileHint}>不含冻结库存</div>
+              </div>
+              <div className={styles.valueTileFigure}>{formatCurrency(stats.availableValue)}</div>
             </div>
 
             {/* Summary stat tiles */}
