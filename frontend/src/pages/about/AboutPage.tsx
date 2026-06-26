@@ -57,8 +57,8 @@ export function AboutPage() {
             <dt className={styles.metaKey}>技术栈</dt>
             <dd className={styles.metaVal}>
               <div className={styles.stack}>
-                <span>前端：Vite · React 19 · TypeScript</span>
-                <span>后端：Go · Gin · sqlx · MySQL</span>
+                <span>FRONTEND :  Vite · React 19 · TypeScript  </span>
+                <span>BACKEND :  Go · Gin · sqlx · MySQL  </span>
               </div>
             </dd>
             <dt className={styles.metaKey}>设计规范</dt>
