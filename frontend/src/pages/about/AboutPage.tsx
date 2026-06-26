@@ -83,13 +83,7 @@ export function AboutPage() {
           {developers.map((dev) => (
             <article key={dev.email} className={styles.devCard}>
               <div className={styles.devHead}>
-                <a
-                  className={styles.avatarLink}
-                  href={dev.avatarUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`${dev.name} 的 GitHub 头像`}
-                >
+                <span className={styles.avatarLink}>
                   <img
                     className={styles.avatar}
                     src={dev.avatarUrl}
@@ -97,7 +91,7 @@ export function AboutPage() {
                     loading="lazy"
                     referrerPolicy="no-referrer"
                   />
-                </a>
+                </span>
                 <div>
                   <div className={styles.devName}>
                     {dev.name}
