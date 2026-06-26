@@ -1,0 +1,39 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  letter-spacing: 0.16px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-03) var(--space-04);
+  border-bottom: 1px solid var(--cds-border-tile);
+  white-space: nowrap;
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--cds-text-secondary);
+  font-size: 12px;
+  letter-spacing: 0.32px;
+}
+
+.table td.num,
+.table th.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+.gap {
+  color: var(--cds-support-error);
+  font-weight: 600;
+}
+
+.name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
