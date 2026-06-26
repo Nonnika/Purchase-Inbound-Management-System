@@ -1,68 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { overviewApi } from '@/api/overview'
 import { itemsApi } from '@/api/items'
+import { warehousesApi } from '@/api/warehouses'
 import { rolesApi } from '@/api/roles'
 import { fetchAll } from '@/api/pagination'
 import { toApiError, type ApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
-import type { OverviewSummary } from '@/types/overview'
+import type {
+  CargoByWarehouse as CargoByWarehouseData,
+  OrderTrend,
+  OverviewSummary,
+} from '@/types/overview'
+import type { Item } from '@/types/item'
+import type { Warehouse } from '@/types/warehouse'
 import type { Role } from '@/types/role'
-import { ROLE_ID } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
-import { Tag, type TagKind } from '@/components/ui/Tag/Tag'
+import { Tag } from '@/components/ui/Tag/Tag'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { KpiStrip } from './KpiStrip'
+import { OrderTrendChart } from './OrderTrendChart'
+import { CargoByWarehouse } from './CargoByWarehouse'
+import { LowInventoryRank } from './LowInventoryRank'
+import { OrderStatusPanel } from './OrderStatusPanel'
+import { TopValueItems } from './TopValueItems'
+import { ShortcutGrid } from './ShortcutGrid'
+import { cargoByWarehouseFallback } from './aggregate'
 import styles from './HomePage.module.css'
 
 type LoadState = 'loading' | 'error' | 'ready'
 
 /**
- * Console shortcut tiles. `roles` restricts visibility by the current user's
- * role (undefined = every authenticated role), mirroring AppLayout's nav
- * gating so a tile never links to a page the user can't read (e.g. /users is
- * admin-only — the broken hero link the old marketing page had).
- */
-interface Shortcut {
-  to: string
-  label: string
-  desc: string
-  tag: string
-  tagKind: TagKind
-  roles?: number[]
-}
-
-const SHORTCUTS: Shortcut[] = [
-  { to: '/orders', label: '订单管理', desc: '采购申请、出库申请与订单流转', tag: '业务', tagKind: 'blue' },
-  { to: '/items', label: '物品管理', desc: '物品档案、库存与预警阈值', tag: '库存', tagKind: 'green' },
-  { to: '/warehouses', label: '仓库管理', desc: '仓库档案与存储统计', tag: '库存', tagKind: 'green' },
-  { to: '/categories', label: '分类管理', desc: '物品分类树维护', tag: '基础', tagKind: 'gray' },
-  { to: '/departments', label: '部门管理', desc: '组织架构树维护', tag: '基础', tagKind: 'gray' },
-  { to: '/users', label: '用户管理', desc: '用户、角色与封禁', tag: '权限', tagKind: 'gray', roles: [ROLE_ID.ADMIN] },
-]
-
-/** One row in the order-status distribution panel. */
-interface StatusRow {
-  key: string
-  label: string
-  count: number
-  kind: TagKind
-  hint?: string
-}
-
-/** Map a Tag kind to its fill color for the distribution bars. */
-const KIND_FILL: Record<TagKind, string> = {
-  blue: 'var(--blue-60)',
-  green: 'var(--green-50)',
-  red: 'var(--red-60)',
-  gray: 'var(--gray-50)',
-}
-
-/**
- * HomePage — the operational console. Replaces the old marketing landing page
- * with a live dashboard backed by `GET /api/overview/summary`: headline KPI
- * tiles, an order-status distribution panel, and role-gated shortcut tiles.
- * Any authenticated role can load it (the summary endpoint is in the auth
- * group but enforces no specific role).
+ * HomePage —— 运营仪表盘容器。拉取 summary（致命）+ 5 个非致命并发数据，
+ * 分发给各分析子模块。非致命失败由各模块自行占位，不阻断其余渲染。
  */
 export function HomePage() {
   const user = getCurrentUser()
@@ -70,9 +39,14 @@ export function HomePage() {
 
   const [summary, setSummary] = useState<OverviewSummary | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
-  // Global cargo value (CalSum id=0, Σ price × item_inventory across all
-  // warehouses). Non-fatal: null until the fetch settles or on failure.
   const [cargoValue, setCargoValue] = useState<number | null>(null)
+  // 三态：null=加载中，undefined=失败，对象=成功
+  const [trend, setTrend] = useState<OrderTrend | null | undefined>(null)
+  const [trendError, setTrendError] = useState<unknown>(null)
+  const [cargoByWh, setCargoByWh] = useState<CargoByWarehouseData | null | undefined>(null)
+  const [cargoByWhError, setCargoByWhError] = useState<unknown>(null)
+  const [items, setItems] = useState<Item[] | null>(null)
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [state, setState] = useState<LoadState>('loading')
   const [error, setError] = useState<ApiError | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
@@ -80,17 +54,40 @@ export function HomePage() {
   const load = useCallback(async () => {
     setState('loading')
     setError(null)
+    // 非致命子模块先置为加载中（null），错误位清零。
+    setTrend(null)
+    setTrendError(null)
+    setCargoByWh(null)
+    setCargoByWhError(null)
+    setItems(null)
     try {
-      // Summary is the primary payload; roles + cargoValue are non-fatal side
-      // fetches (role name resolution + the global cargo-value KPI).
-      const [s, rs, cv] = await Promise.all([
+      // summary 致命：决定整页能否渲染。其余并发 .catch 降级。
+      const [s, rs, cv, tr, cw, its, whs] = await Promise.all([
         overviewApi.summary(),
         fetchAll(rolesApi.selectAll).catch(() => [] as Role[]),
         itemsApi.calSum(0).catch(() => null),
+        overviewApi
+          .orderTrend(14)
+          .catch((e: unknown) => {
+            setTrendError(e)
+            return undefined
+          }),
+        overviewApi
+          .cargoByWarehouse()
+          .catch((e: unknown) => {
+            setCargoByWhError(e)
+            return undefined
+          }),
+        fetchAll(itemsApi.selectAll).catch(() => null),
+        fetchAll(warehousesApi.selectAll).catch(() => [] as Warehouse[]),
       ])
       setSummary(s)
       setRoles(rs)
       setCargoValue(cv)
+      setTrend(tr)
+      setCargoByWh(cw)
+      setItems(its)
+      setWarehouses(whs)
       setUpdatedAt(new Date())
       setState('ready')
     } catch (err) {
@@ -109,30 +106,16 @@ export function HomePage() {
     return m
   }, [roles])
 
-  const visibleShortcuts = useMemo(
-    () => SHORTCUTS.filter((s) => !s.roles || s.roles.includes(roleId)),
-    [roleId],
-  )
-
-  // Derive the status distribution + KPI tiles from the summary. totalOrders
-  // spans every non-deleted status so the proportional bars share one scale.
-  const statusRows: StatusRow[] = summary
-    ? [
-        {
-          key: 'pending',
-          label: '申请中',
-          count: summary.pending_audit,
-          kind: 'gray',
-          hint: `进货 ${summary.purchase_requesting} · 出货 ${summary.outbound_requesting}`,
-        },
-        { key: 'approved', label: '审核通过', count: summary.audit_approved, kind: 'blue' },
-        { key: 'received', label: '已入库', count: summary.warehouse_received, kind: 'green' },
-        { key: 'shipped', label: '已出库', count: summary.warehouse_shipped, kind: 'green' },
-        { key: 'rejected', label: '已驳回', count: summary.audit_rejected, kind: 'red' },
-      ]
-    : []
-
-  const totalOrders = statusRows.reduce((sum, r) => sum + r.count, 0)
+  // 仓库货值兜底：端点失败(undefined)时用全量 items + warehouses 本地聚合。
+  // - 端点成功(对象或空分布) → 直接用
+  // - null → 仍在加载中
+  // - undefined 且 items 已就绪 → 本地兜底
+  // - undefined 且 items 也失败 → 仍 undefined(模块显示错误占位)
+  const cargoByWhResolved: CargoByWarehouseData | null | undefined = useMemo(() => {
+    if (cargoByWh !== undefined) return cargoByWh
+    if (items === null) return undefined // items 未就绪或失败 → 模块走错误占位
+    return cargoByWarehouseFallback(items, warehouses)
+  }, [cargoByWh, items, warehouses])
 
   const greeting = user ? `欢迎回来，${user.real_name || user.username}` : '欢迎回来'
 
@@ -179,80 +162,27 @@ export function HomePage() {
           <p className={styles.muted}>正在加载控制台数据…</p>
         ) : summary ? (
           <>
-            {/* KPI tiles — hairline grid, one highlighted to draw the eye. */}
-            <div className={styles.kpis}>
-              <KpiTile label="物品总数" value={summary.item_total} sub="全部在库物品" />
-              <KpiTile
-                label="在库总货值"
-                value={cargoValue ?? 0}
-                sub="全部仓库 · 含冻结"
-                format={formatCargoValue}
-              />
-              <KpiTile
-                label="库存不足"
-                value={summary.low_inventory_count}
-                sub="达到预警阈值"
-                warn={summary.low_inventory_count > 0}
-              />
-              <KpiTile
-                label="待审核订单"
-                value={summary.pending_audit}
-                sub={`进货 ${summary.purchase_requesting} · 出货 ${summary.outbound_requesting}`}
-                highlight
-              />
-              <KpiTile label="待出入库" value={summary.audit_approved} sub="审核通过待处理" />
+            <KpiStrip
+              cargoValue={cargoValue}
+              itemTotal={summary.item_total}
+              pendingAudit={summary.pending_audit}
+              purchaseRequesting={summary.purchase_requesting}
+              outboundRequesting={summary.outbound_requesting}
+            />
+
+            <OrderTrendChart trend={trend} error={trendError} />
+
+            <div className={styles.duo}>
+              <CargoByWarehouse data={cargoByWhResolved} error={cargoByWhError} />
+              <LowInventoryRank items={items} />
             </div>
 
-            {/* Order status distribution */}
-            <div className={styles.panel}>
-              <div className={styles.panelHead}>
-                <h2 className={styles.panelTitle}>订单状态分布</h2>
-                <span className={styles.panelMeta}>共 {totalOrders} 单</span>
-              </div>
-              {totalOrders === 0 ? (
-                <p className={styles.muted}>暂无订单数据。</p>
-              ) : (
-                <div className={styles.statusList}>
-                  {statusRows.map((row) => {
-                    const pct = totalOrders > 0 ? (row.count / totalOrders) * 100 : 0
-                    return (
-                      <div key={row.key} className={styles.statusRow}>
-                        <div className={styles.statusLabel}>
-                          <Tag kind={row.kind}>{row.label}</Tag>
-                          {row.hint && <span className={styles.statusHint}>{row.hint}</span>}
-                        </div>
-                        <div className={styles.bar} aria-hidden>
-                          <div
-                            className={styles.barFill}
-                            style={{ width: `${pct}%`, background: KIND_FILL[row.kind] }}
-                          />
-                        </div>
-                        <div className={styles.statusCount}>{row.count}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+            <div className={styles.duo}>
+              <OrderStatusPanel summary={summary} />
+              <TopValueItems items={items} />
             </div>
 
-            {/* Quick navigation */}
-            <div className={styles.panel}>
-              <div className={styles.panelHead}>
-                <h2 className={styles.panelTitle}>快捷入口</h2>
-              </div>
-              <div className={styles.shortcuts}>
-                {visibleShortcuts.map((s) => (
-                  <Link key={s.to} to={s.to} className={styles.shortcut}>
-                    <Tag kind={s.tagKind}>{s.tag}</Tag>
-                    <h3 className={styles.shortcutTitle}>{s.label}</h3>
-                    <p className={styles.shortcutDesc}>{s.desc}</p>
-                    <span className={styles.shortcutArrow} aria-hidden>
-                      →
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
+            <ShortcutGrid roleId={roleId} />
           </>
         ) : null}
       </div>
@@ -260,47 +190,8 @@ export function HomePage() {
   )
 }
 
-interface KpiTileProps {
-  label: string
-  value: number
-  sub?: string
-  highlight?: boolean
-  warn?: boolean
-  /** Override the default integer locale formatting (e.g. for currency). */
-  format?: (value: number) => string
-}
-
-function KpiTile({ label, value, sub, highlight, warn, format }: KpiTileProps) {
-  return (
-    <div
-      className={[
-        styles.kpi,
-        highlight ? styles.kpiHighlight : '',
-        warn && value > 0 ? styles.kpiWarn : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      <div className={styles.kpiLabel}>{label}</div>
-      <div className={styles.kpiValue}>{format ? format(value) : value.toLocaleString('zh-CN')}</div>
-      {sub && <div className={styles.kpiSub}>{sub}</div>}
-    </div>
-  )
-}
-
 /** HH:mm (local) for the "updated at" caption. */
 function formatClock(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/**
- * Compact currency for the cargo-value KPI: ¥1,234.56 / ¥1.2万 / ¥1.2亿.
- * Keeps the figure short enough for the 32px mono tile value.
- */
-function formatCargoValue(value: number): string {
-  if (!Number.isFinite(value)) return '—'
-  if (value >= 1e8) return `¥${(value / 1e8).toFixed(2)}亿`
-  if (value >= 1e4) return `¥${(value / 1e4).toFixed(1)}万`
-  return `¥${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
