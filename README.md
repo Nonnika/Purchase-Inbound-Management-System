@@ -21,7 +21,21 @@ The repository contains a Go backend API and a React frontend.
 |   |-- internal/         # Controllers, DAOs, models, auth, config
 |   |-- migrations/       # MySQL schema migrations
 |   `-- tests/            # API and behavior tests
-|-- frontend/             # Vite + React + TypeScript frontend
+|-- frontend/             # Vite + React 19 + TypeScript frontend
+|   |-- src/
+|   |   |-- api/          # Axios client + per-resource modules + ApiError
+|   |   |-- components/
+|   |   |   |-- layout/   # AppLayout shell
+|   |   |   `-- ui/       # Reusable Carbon-style UI
+|   |   |-- hooks/        # Shared hooks
+|   |   |-- pages/        # Feature pages
+|   |   |-- router/       # createBrowserRouter + RequireAuth guard
+|   |   |-- styles/       # Design tokens (tokens.css) + global.css
+|   |   |-- types/        # TypeScript models mirroring backend models
+|   |   `-- utils/        # Shared utilities
+|   |-- index.html
+|   |-- vite.config.ts    # Dev server + /api proxy to :8080
+|   `-- tsconfig.app.json # @/* path alias -> src/*
 `-- tests/                # Postman collection and external test assets
 ```
 
