@@ -10,19 +10,20 @@ import (
 type Config struct {
 	user     string
 	password string
+	addr     string
 	port     string
 	params   string
 	Dsn      string
 }
 
 // NewConfig 创建新的数据库配置文件比如用户名和密码
-func NewConfig(user, password, port, params string) *Config {
-	return &Config{user, password, port, params, ""}
+func NewConfig(user, password, addr, port, params string) *Config {
+	return &Config{user, password, addr, port, params, ""}
 }
 
 func (c *Config) Init(dbName string) {
-	template := "%s:%s@tcp(127.0.0.1:%s)/%s?%s"
-	c.Dsn = fmt.Sprintf(template, c.user, c.password, c.port, dbName, c.params)
+	template := "%s:%s@tcp(%s:%s)/%s?%s"
+	c.Dsn = fmt.Sprintf(template, c.user, c.password, c.addr, c.port, dbName, c.params)
 }
 
 var roles = []model.Role{
