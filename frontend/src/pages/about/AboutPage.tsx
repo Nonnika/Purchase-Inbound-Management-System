@@ -9,6 +9,7 @@ interface Developer {
   /** 职责分工描述。 */
   domain: string
   email: string
+  avatarUrl: string
 }
 
 const developers: Developer[] = [
@@ -18,6 +19,7 @@ const developers: Developer[] = [
     role: '后端开发',
     domain: 'liewyoung.top',
     email: 'SunCanHelpU@outlook.com',
+    avatarUrl: 'https://avatars.githubusercontent.com/u/83482548?v=4',
   },
   {
     name: 'Syrnaxei',
@@ -25,6 +27,7 @@ const developers: Developer[] = [
     role: '前端开发',
     domain: 'struct.top',
     email: 'm1725576689@gmail.com',
+    avatarUrl: 'https://avatars.githubusercontent.com/u/81091444?v=4',
   },
 ]
 
@@ -80,9 +83,21 @@ export function AboutPage() {
           {developers.map((dev) => (
             <article key={dev.email} className={styles.devCard}>
               <div className={styles.devHead}>
-                <div className={styles.avatar} aria-hidden>
-                  {dev.name.slice(0, 1)}
-                </div>
+                <a
+                  className={styles.avatarLink}
+                  href={dev.avatarUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${dev.name} 的 GitHub 头像`}
+                >
+                  <img
+                    className={styles.avatar}
+                    src={dev.avatarUrl}
+                    alt={`${dev.name} 的 GitHub 头像`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                </a>
                 <div>
                   <div className={styles.devName}>
                     {dev.name}
