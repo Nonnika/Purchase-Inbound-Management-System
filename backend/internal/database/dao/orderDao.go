@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/nonnika/pims/internal/database/model"
@@ -489,11 +490,23 @@ func canonicalJSON(payload json.RawMessage) ([]byte, error) {
 		return []byte("{}"), nil
 	}
 
-	var compacted bytes.Buffer
-	if err := json.Compact(&compacted, payload); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.UseNumber()
+
+	var value any
+	if err := decoder.Decode(&value); err != nil {
 		return nil, err
 	}
-	return compacted.Bytes(), nil
+
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return nil, errors.New("invalid json payload")
+		}
+		return nil, err
+	}
+
+	return json.Marshal(value)
 }
 
 func sha256Hex(data []byte) string {
