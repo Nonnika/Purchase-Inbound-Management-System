@@ -1,8 +1,4 @@
-/* HomePage — operational console.
- * Carbon: 0px radius, background-color layering (no shadows), single Blue 60
- * accent, Plex Sans light display + mono numerics, 8px grid. Hairline tile
- * grids use a 1px gap over a border-colored backdrop (the Carbon tile pattern).
- */
+/* HomePage 容器样式 —— 页头 + 双列布局栅格。模块自有样式在各组件 .module.css。 */
 
 .header {
   display: flex;
@@ -54,194 +50,16 @@
   letter-spacing: 0.16px;
 }
 
-/* ---- KPI tiles ---- */
-/* 1px gap over a border-tile backdrop produces the hairline grid; each tile is
-   a flat layer-01 surface (highlighted = blue-10, warn = red value text). */
-.kpis {
+/* 双列分析区：两列等宽，gap 间隔。 */
+.duo {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1px;
-  background: var(--cds-border-tile);
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-06);
   margin-bottom: var(--space-07);
-}
-
-.kpi {
-  background: var(--cds-layer-01);
-  padding: var(--space-05);
-}
-
-.kpiHighlight {
-  background: var(--blue-10);
-}
-
-.kpiLabel {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--cds-text-secondary);
-  letter-spacing: 0.32px;
-  margin-bottom: var(--space-03);
-}
-
-.kpiValue {
-  font-family: var(--font-mono);
-  font-size: 32px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: 0;
-  color: var(--cds-text-primary);
-}
-
-.kpiWarn .kpiValue {
-  color: var(--cds-support-error);
-}
-
-.kpiSub {
-  margin-top: var(--space-03);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--cds-text-secondary);
-  letter-spacing: 0.16px;
-}
-
-/* ---- Panels (status distribution / shortcuts) ---- */
-.panel {
-  background: var(--cds-layer-01);
-  padding: var(--space-05);
-  margin-bottom: var(--space-07);
-}
-
-.panelHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-05);
-  margin-bottom: var(--space-05);
-}
-
-.panelTitle {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.panelMeta {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--cds-text-secondary);
-  letter-spacing: 0.16px;
-}
-
-/* ---- Status distribution rows ---- */
-.statusList {
-  display: flex;
-  flex-direction: column;
-}
-
-.statusRow {
-  display: grid;
-  grid-template-columns: minmax(180px, 240px) 1fr 64px;
-  align-items: center;
-  gap: var(--space-05);
-  padding: var(--space-04) 0;
-  border-bottom: 1px solid var(--cds-border-tile);
-}
-.statusRow:last-child {
-  border-bottom: none;
-}
-
-.statusLabel {
-  display: flex;
-  align-items: center;
-  gap: var(--space-03);
-  flex-wrap: wrap;
-}
-
-.statusHint {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--gray-60);
-  letter-spacing: 0.16px;
-}
-
-.bar {
-  position: relative;
-  height: 8px;
-  background: var(--cds-layer-02);
-}
-
-.barFill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  transition: width 0.2s ease;
-}
-
-.statusCount {
-  text-align: right;
-  font-family: var(--font-mono);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0;
-  color: var(--cds-text-primary);
-}
-
-/* ---- Shortcut tiles ---- */
-.shortcuts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1px;
-  background: var(--cds-border-tile);
-  margin: calc(var(--space-05) * -1);
-  margin-top: 0;
-}
-
-.shortcut {
-  position: relative;
-  display: block;
-  background: var(--cds-background);
-  padding: var(--space-05);
-  text-decoration: none;
-  color: inherit;
-  transition: background-color 0.15s ease;
-}
-.shortcut:hover {
-  background: var(--cds-layer-01-hover);
-  text-decoration: none;
-}
-
-.shortcutTitle {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.4;
-  margin-top: var(--space-03);
-}
-
-.shortcutDesc {
-  font-size: 14px;
-  color: var(--cds-text-secondary);
-  line-height: 1.29;
-  letter-spacing: 0.16px;
-  margin-top: var(--space-02);
-}
-
-.shortcutArrow {
-  position: absolute;
-  right: var(--space-05);
-  bottom: var(--space-05);
-  font-family: var(--font-mono);
-  color: var(--cds-link-primary);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.shortcut:hover .shortcutArrow {
-  opacity: 1;
 }
 
 @media (max-width: 672px) {
-  .statusRow {
-    grid-template-columns: 1fr 48px;
-  }
-  .bar {
-    grid-column: 1 / -1;
-    margin-top: var(--space-02);
+  .duo {
+    grid-template-columns: 1fr;
   }
 }
