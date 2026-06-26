@@ -16,6 +16,7 @@ import { CategoryDetailPage } from '@/pages/categories/CategoryDetailPage'
 import { ProfilePage } from '@/pages/profile/ProfilePage'
 import { LoginPage } from '@/pages/login/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { AboutPage } from '@/pages/about/AboutPage'
 import { isLoggedIn } from '@/api/auth'
 import type { ReactNode } from 'react'
 
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
       { path: 'categories', element: <CategoriesPage /> },
       { path: 'categories/:id', element: <CategoryDetailPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'about', element: <AboutPage /> },
       // The procurement flow lives on the unified /orders page; these legacy
       // nav entries alias there so existing links keep working.
       { path: 'purchasing', element: <OrdersPage /> },

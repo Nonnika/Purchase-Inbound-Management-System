@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
   { to: '/categories', label: '分类管理' },
   { to: '/users', label: '用户管理', roles: [ROLE_ID.ADMIN] },
   { to: '/departments', label: '部门管理' },
+  { to: '/about', label: '关于' },
 ]
 
 /**
