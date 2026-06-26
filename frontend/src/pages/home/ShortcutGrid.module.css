@@ -1,0 +1,50 @@
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1px;
+  background: var(--cds-border-tile);
+  margin: calc(var(--space-05) * -1);
+  margin-top: 0;
+}
+
+.shortcut {
+  position: relative;
+  display: block;
+  background: var(--cds-background);
+  padding: var(--space-05);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.15s ease;
+}
+.shortcut:hover {
+  background: var(--cds-layer-01-hover);
+  text-decoration: none;
+}
+
+.shortcutTitle {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: var(--space-03);
+}
+
+.shortcutDesc {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  line-height: 1.29;
+  letter-spacing: 0.16px;
+  margin-top: var(--space-02);
+}
+
+.shortcutArrow {
+  position: absolute;
+  right: var(--space-05);
+  bottom: var(--space-05);
+  font-family: var(--font-mono);
+  color: var(--cds-link-primary);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.shortcut:hover .shortcutArrow {
+  opacity: 1;
+}
