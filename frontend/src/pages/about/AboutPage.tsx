@@ -92,8 +92,6 @@ export function AboutPage() {
                 </div>
               </div>
               <dl className={styles.metaGrid}>
-                <dt className={styles.metaKey}>昵称</dt>
-                <dd className={styles.metaVal}>{dev.handle}</dd>
                 <dt className={styles.metaKey}>职责</dt>
                 <dd className={styles.metaVal}>{dev.role}</dd>
                 <dt className={styles.metaKey}>个人网站</dt>

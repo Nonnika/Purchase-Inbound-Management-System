@@ -75,9 +75,12 @@ export function ItemDetailPage() {
   const frozen = item?.frozen_inventory ?? 0
   const available = total - frozen
   const price = item?.price ?? null
-  const value = price != null ? available * price : null
+  // 库存总值 = 总库存 × 单价（含冻结），与 HomePage「在库总货值」/ CalSum 同口径。
+  const value = price != null ? total * price : null
   const warningLevel = item?.warning_level ?? null
-  const low = warningLevel != null && available <= warningLevel
+  // 预警按总库存判定（item_inventory ≤ warning_level），与后端 overview 的
+  // low_inventory_count 及 HomePage 预警榜口径一致。
+  const low = warningLevel != null && total <= warningLevel
 
   return (
     <section className="section">
@@ -125,12 +128,11 @@ export function ItemDetailPage() {
             {/* Inventory total value — full-width highlight tile, above the grid.
                 Mirrors WarehouseDetailPage's value tile: large figure on the
                 right with a Chinese-uppercase (财务大写) amount beneath it, label
-                + hint on the left. value = available × price (frozen stock is
-                held by audit-approved outbound orders, not counted here). */}
+                + hint on the left. value = 总库存 × 单价（含冻结），与 CalSum 同口径。 */}
             <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
               <div className={styles.valueTileLeft}>
                 <div className={`${styles.statLabel} ${styles.largeLabel}`}>库存总值</div>
-                <div className={styles.valueTileHint}>可用库存 × 单价</div>
+                <div className={styles.valueTileHint}>含冻结库存</div>
               </div>
               <div className={styles.valueTileRight}>
                 <div className={styles.valueTileFigure}>{value != null ? formatCurrency(value) : '—'}</div>

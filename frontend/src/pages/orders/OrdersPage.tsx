@@ -257,7 +257,7 @@ export function OrdersPage() {
       return
     }
     const count = Number(createForm.count)
-    if (!Number.isFinite(count) || count <= 0) {
+    if (!Number.isFinite(count) || count <= 0 || !Number.isInteger(count)) {
       setCreateError(
         new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '数量必须为正整数' }),
       )
@@ -265,10 +265,22 @@ export function OrdersPage() {
     }
     // Outbound requests can't exceed the item's available stock. The input is
     // clamped client-side, but re-check here in case the item was switched or a
-    // value pasted after the clamp ran.
+    // value pasted after the clamp ran. Also blocks the no-available-stock case
+    // outright so a disabled-but-cleared input can never slip through.
     if (createForm.type === ORDER_TYPE.OUTBOUND) {
       const it = itemsMap.get(createForm.itemId)
       const available = (it?.item_inventory ?? 0) - (it?.frozen_inventory ?? 0)
+      if (available <= 0) {
+        setCreateError(
+          new ApiError({
+            code: 'BAD_REQUEST',
+            status: null,
+            reason: '请求参数有误',
+            detail: '该物品无可用库存，无法出库',
+          }),
+        )
+        return
+      }
       if (count > available) {
         setCreateError(
           new ApiError({
@@ -519,9 +531,11 @@ export function OrdersPage() {
         <TextInput
           label="数量 *"
           type="number"
+          step={1}
           min={1}
           max={isOutboundCreate && availableQty != null ? availableQty : undefined}
           value={createForm.count}
+          disabled={isOutboundCreate && availableQty === 0}
           onChange={(e) => {
             let v = e.target.value
             // Outbound: hard-clamp the typed value to available stock so a count
@@ -535,9 +549,11 @@ export function OrdersPage() {
           placeholder="正整数"
           helper={
             isOutboundCreate
-              ? availableQty != null
-                ? `可出库数量：${availableQty} 件`
-                : '请先选择物品'
+              ? availableQty == null
+                ? '请先选择物品'
+                : availableQty === 0
+                  ? '该物品无可用库存，无法出库'
+                  : `可出库数量：${availableQty} 件`
               : undefined
           }
         />

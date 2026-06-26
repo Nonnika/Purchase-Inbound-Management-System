@@ -44,7 +44,7 @@ export function ShortcutGrid({ roleId }: ShortcutGridProps) {
             <h3 className={styles.shortcutTitle}>{s.label}</h3>
             <p className={styles.shortcutDesc}>{s.desc}</p>
             <span className={styles.shortcutArrow} aria-hidden>
-              →
+              Mv
             </span>
           </Link>
         ))}
