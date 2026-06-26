@@ -58,7 +58,7 @@ export function TopValueItems({ items }: TopValueItemsProps) {
   return (
     <section className={shared.panel}>
       <div className={shared.panelHead}>
-        <h2 className={shared.panelTitle}>高货值物品 Top 5</h2>
+        <h2 className={shared.panelTitle}>高货值物品</h2>
       </div>
       {body}
     </section>
