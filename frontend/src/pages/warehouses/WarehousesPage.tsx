@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { warehousesApi } from '@/api/warehouses'
+import { itemsApi } from '@/api/items'
 import { ApiError, toApiError } from '@/api/errors'
 import { getCurrentUser } from '@/api/auth'
 import { usePagedList } from '@/hooks/usePagedList'
@@ -13,6 +14,7 @@ import { Modal } from '@/components/ui/Modal/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import { Pagination } from '@/components/ui/Pagination/Pagination'
+import { formatCargoValue } from '@/utils/currency'
 import styles from './WarehousesPage.module.css'
 
 const PAGE_SIZE = 10
@@ -71,6 +73,36 @@ export function WarehousesPage() {
       (w) => w.name.toLowerCase().includes(term) || String(w.id).includes(term),
     )
   }, [rows, searchTerm])
+
+  // Per-warehouse cargo value (Σ price × item_inventory, includes frozen) from
+  // GET /items/CalSum?id=<warehouseId>. Fetched for every warehouse in the
+  // current `rows` (the page, or all warehouses in search mode) so the value
+  // persists across client-side filtering without refetching on each keystroke.
+  // null = fetch failed for that warehouse; undefined = still loading.
+  const [cargoValues, setCargoValues] = useState<Record<number, number | null>>({})
+  useEffect(() => {
+    if (rows.length === 0) {
+      setCargoValues({})
+      return
+    }
+    let cancelled = false
+    Promise.all(
+      rows.map((w) =>
+        itemsApi
+          .calSum(w.id)
+          .then((sum) => [w.id, sum] as const)
+          .catch(() => [w.id, null] as const),
+      ),
+    ).then((entries) => {
+      if (cancelled) return
+      const next: Record<number, number | null> = {}
+      for (const [id, sum] of entries) next[id] = sum
+      setCargoValues(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [rows])
 
   const openCreate = () => {
     setCreateForm({ ...emptyForm })
@@ -235,6 +267,7 @@ export function WarehousesPage() {
                   <tr>
                     <th>ID</th>
                     <th>仓库名称</th>
+                    <th>仓库总值</th>
                     <th>说明</th>
                     <th>创建时间</th>
                     <th className={styles.actionCol}>操作</th>
@@ -247,6 +280,7 @@ export function WarehousesPage() {
                       <td>
                         <Tag kind="blue">{w.name}</Tag>
                       </td>
+                      <td className={styles.mono}>{formatCargoValueCell(cargoValues[w.id])}</td>
                       <td className={styles.desc}>{w.description || '—'}</td>
                       <td className={styles.mono}>{formatTime(w.create_at)}</td>
                       <td className={styles.actionCol}>
@@ -375,6 +409,17 @@ export function WarehousesPage() {
 function normalizeText(value: string | null): string | null {
   const v = (value ?? '').trim()
   return v === '' ? null : v
+}
+
+/**
+ * Render a warehouse's cargo value cell: `…` while loading (undefined),
+ * `—` when the CalSum call failed (null), otherwise the compact currency
+ * form via `formatCargoValue`.
+ */
+function formatCargoValueCell(value: number | null | undefined): string {
+  if (value === undefined) return '…'
+  if (value === null) return '—'
+  return formatCargoValue(value)
 }
 
 function formatTime(iso: string): string {

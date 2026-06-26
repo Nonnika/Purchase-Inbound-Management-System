@@ -9,6 +9,19 @@ const CN_DIGITS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌'
 const CN_INT_UNITS = ['', '拾', '佰', '仟']
 const CN_INT_SECTIONS = ['', '万', '亿', '兆']
 
+/**
+ * Compact cargo-value formatting for tight cells (KPI tiles, table columns):
+ * ¥1,234.56 / ¥1.2万 / ¥1.2亿. Large totals collapse to 万/亿 so they stay
+ * readable in a narrow column; small amounts keep full cents. Same口径 as
+ * `formatCurrency` (Σ price × item_inventory, includes frozen) — just denser.
+ */
+export function formatCargoValue(value: number): string {
+  if (!Number.isFinite(value)) return '—'
+  if (value >= 1e8) return `¥${(value / 1e8).toFixed(2)}亿`
+  if (value >= 1e4) return `¥${(value / 1e4).toFixed(1)}万`
+  return `¥${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 /** Format a monetary total with thousands separators, e.g. 12345.6 -> ¥12,345.60. */
 export function formatCurrency(value: number): string {
   if (!Number.isFinite(value)) return '—'
