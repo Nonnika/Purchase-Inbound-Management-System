@@ -97,7 +97,7 @@ export function AppLayout() {
 
       <footer className={styles.footer}>
         <div className="container">
-          Purchase Inbound Management System
+          © 2026 Alpha Studio 版权所有
         </div>
       </footer>
     </div>
