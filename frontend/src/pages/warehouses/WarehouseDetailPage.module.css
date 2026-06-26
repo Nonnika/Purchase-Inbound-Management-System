@@ -61,14 +61,29 @@
   background: var(--blue-10);
 }
 
-/* Full-width total-value tile, sits above the grid on its own row. */
+/* Full-width total-value tile, sits above the grid on its own row. Two columns
+   (label+hint on the left, figure+Chinese amount on the right) are top-aligned
+   so the figure's Chinese-uppercase line lands on the same baseline as the
+   left hint line. */
 .valueTile {
   margin-bottom: var(--space-03);
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-05);
   flex-wrap: wrap;
+}
+
+.valueTileLeft {
+  display: flex;
+  flex-direction: column;
+}
+
+.valueTileRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
 }
 
 .valueTileFigure {
@@ -78,6 +93,28 @@
   color: var(--cds-text-primary);
   font-family: var(--font-mono);
   letter-spacing: 0;
+}
+
+/* Chinese-uppercase amount below the figure; same vertical position as the left
+   hint line (both are the second row of their column). Plain Plex Sans so the
+   CJK glyphs read at body size, right-aligned to sit under the figure. */
+.valueTileChinese {
+  margin-top: var(--space-02);
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+  text-align: right;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* Caption under the headline cargo-value label. */
+.valueTileHint {
+  margin-top: var(--space-02);
+  font-size: 12px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+  font-family: var(--font-mono);
 }
 
 .statLabel {

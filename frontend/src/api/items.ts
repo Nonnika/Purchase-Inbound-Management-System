@@ -15,6 +15,13 @@ import type { Item, ItemInput, ItemUpdate } from '@/types/item'
  *   POST   /api/items/create  (purchaser/admin) -> { id }       (JSON: ItemInput)
  *   POST   /api/items/update?id=  (manager)     -> { affected } (JSON: ItemUpdate, partial)
  *   DELETE /api/items/delete?id= (manager)      -> { affected }
+ *   GET    /api/items/CalSum?id=<warehouse_id>  -> { sum }      (any auth role)
+ *
+ * `CalSum` returns the server-authoritative cargo value `Σ price × item_inventory`
+ * (total inventory, NOT frozen-adjusted) for one warehouse, or for every warehouse
+ * when `id=0`. Items with a null price are skipped. Any authenticated role may
+ * call it (no role gate) — used by WarehouseDetailPage (per-warehouse) and the
+ * HomePage console (id=0 global total) so both share one cargo-value definition.
  *
  * All methods reject with an `ApiError` (see src/api/errors.ts) on failure.
  */
@@ -46,5 +53,17 @@ export const itemsApi = {
     return apiClient
       .delete<AffectedResult>('/items/delete', { params: { id } })
       .then((res) => res.data)
+  },
+
+  /**
+   * GET /items/CalSum?id=<warehouse_id>  (any authenticated role) -> sum.
+   * Server-authoritative cargo value `Σ price × item_inventory` (total stock,
+   * includes frozen) for the given warehouse, or for every warehouse when
+   * `warehouseId === 0`. Returns the numeric `sum`.
+   */
+  calSum(warehouseId: number): Promise<number> {
+    return apiClient
+      .get<{ sum: number }>('/items/CalSum', { params: { id: warehouseId } })
+      .then((res) => res.data.sum)
   },
 }

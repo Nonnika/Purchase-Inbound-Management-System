@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/Select/Select'
 import type { SelectOption } from '@/components/ui/Select/Select'
 import { Modal } from '@/components/ui/Modal/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog'
+import { TreeIndent } from '@/components/ui/TreeIndent/TreeIndent'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
 import styles from './CategoriesPage.module.css'
 
@@ -27,6 +28,17 @@ interface FlatRow {
   depth: number
 }
 
+/** A tree row after collapse filtering, carrying the guide-line metadata. */
+interface VisibleRow {
+  category: ItemCategory
+  depth: number
+  /** guides[k] = ancestor at depth k has a following sibling (draws a │). */
+  guides: boolean[]
+  isLast: boolean
+  hasChildren: boolean
+  expanded: boolean
+}
+
 const emptyForm: ItemCategoryInput = {
   name: '',
   description: '',
@@ -39,7 +51,8 @@ const emptyForm: ItemCategoryInput = {
  * valid JWT; writes (register/delete/Update*) are admin-gated on the backend.
  *
  * Categories form a tree via the nullable `parent` field (null/0 = root),
- * exactly like departments. The list renders as an indented tree; create/edit
+ * exactly like departments. The list renders as a collapsible tree (guide
+ * lines + ▶/▼ chevrons) so the parent-child hierarchy is explicit; create/edit
  * happen in modals. All failures surface as ApiError (HTTP code + reason).
  */
 export function CategoriesPage() {
@@ -52,6 +65,10 @@ export function CategoriesPage() {
   const [state, setState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<ApiError | null>(null)
   const [actionError, setActionError] = useState<ApiError | null>(null)
+  // Collapsed node ids (default: none → fully expanded tree). Toggling a node
+  // hides its descendants from the table; the parent-picker still sees every
+  // node via the full flatten, so collapsed subtrees remain selectable as parents.
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set())
 
   // delete confirmation — triggered from the edit modal's footer
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -89,12 +106,20 @@ export function CategoriesPage() {
   }, [loadAll])
 
   const tree = useMemo(() => buildTree(categories), [categories])
+  // Full depth-first flatten — used by the parent picker (every category must
+  // stay selectable as a parent even when its subtree is collapsed in the table).
   const rows = useMemo(() => flatten(tree), [tree])
-  const nameById = useMemo(() => {
-    const m = new Map<number, string>()
-    categories.forEach((c) => m.set(c.id, c.name))
-    return m
-  }, [categories])
+  // Collapse-filtered rows for the table, carrying guide-line metadata.
+  const visibleRows = useMemo(() => walkVisible(tree, collapsed), [tree, collapsed])
+
+  const toggle = useCallback((id: number) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
 
   const openCreate = () => {
     setCreateForm({ ...emptyForm })
@@ -262,34 +287,50 @@ export function CategoriesPage() {
                   <th>ID</th>
                   <th>分类名称</th>
                   <th>说明</th>
-                  <th>上级分类</th>
                   <th>创建时间</th>
                   <th className={styles.actionCol}>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ category, depth }) => (
-                  <tr key={category.id}>
-                    <td className={styles.mono}>{category.id}</td>
-                    <td>
-                      <span className={styles.nameCell}>
-                        {Array.from({ length: depth }).map((_, i) => (
-                          <span key={i} className={styles.indent} aria-hidden="true" />
-                        ))}
-                        <Tag kind={depth === 0 ? 'blue' : 'gray'}>{category.name}</Tag>
-                      </span>
+                {visibleRows.map((row) => (
+                  <tr
+                    key={row.category.id}
+                    className={row.hasChildren ? styles.clickableRow : undefined}
+                    onClick={row.hasChildren ? () => toggle(row.category.id) : undefined}
+                  >
+                    <td className={styles.mono}>{row.category.id}</td>
+                    <td className={styles.nameTd}>
+                      <TreeIndent
+                        depth={row.depth}
+                        guides={row.guides}
+                        isLast={row.isLast}
+                        hasChildren={row.hasChildren}
+                        expanded={row.expanded}
+                        onToggle={() => toggle(row.category.id)}
+                      >
+                        <Tag kind={row.depth === 0 ? 'blue' : 'gray'}>{row.category.name}</Tag>
+                      </TreeIndent>
                     </td>
-                    <td className={styles.desc}>{category.description || '—'}</td>
-                    <td className={styles.mono}>
-                      {category.parent == null ? '—' : nameById.get(category.parent) ?? `#${category.parent}`}
-                    </td>
-                    <td className={styles.mono}>{formatTime(category.created_at)}</td>
+                    <td className={styles.desc}>{row.category.description || '—'}</td>
+                    <td className={styles.mono}>{formatTime(row.category.created_at)}</td>
                     <td className={styles.actionCol}>
-                      <Button variant="ghost" onClick={() => navigate(`/categories/${category.id}`)}>
+                      <Button
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/categories/${row.category.id}`)
+                        }}
+                      >
                         详情
                       </Button>
                       {canManage && (
-                        <Button variant="ghost" onClick={() => openEdit(category)}>
+                        <Button
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEdit(row.category)
+                          }}
+                        >
                           编辑
                         </Button>
                       )}
@@ -440,6 +481,32 @@ function flatten(nodes: CategoryNode[], depth = 0, acc: FlatRow[] = []): FlatRow
     acc.push({ category: n, depth })
     flatten(n.children, depth + 1, acc)
   }
+  return acc
+}
+
+/**
+ * Depth-first walk that skips the descendants of collapsed nodes, producing the
+ * visible table rows. Each row carries the guide-line metadata `TreeIndent`
+ * needs: `guides[k]` is true when the ancestor at depth `k` has a following
+ * sibling (a │ runs through this row at column k), and `isLast` picks the elbow
+ * shape (└ vs ├). The `guides` array is threaded down the recursion — entering
+ * a node's children appends `!isLast` (that node has a following sibling).
+ */
+function walkVisible(
+  nodes: CategoryNode[],
+  collapsed: Set<number>,
+  guides: boolean[] = [],
+  acc: VisibleRow[] = [],
+): VisibleRow[] {
+  nodes.forEach((n, i) => {
+    const isLast = i === nodes.length - 1
+    const hasChildren = n.children.length > 0
+    const expanded = !collapsed.has(n.id)
+    acc.push({ category: n, depth: guides.length, guides: [...guides], isLast, hasChildren, expanded })
+    if (hasChildren && expanded) {
+      walkVisible(n.children, collapsed, [...guides, !isLast], acc)
+    }
+  })
   return acc
 }
 

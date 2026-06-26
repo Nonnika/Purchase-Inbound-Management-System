@@ -24,7 +24,12 @@ type LoadState = 'loading' | 'error' | 'empty' | 'ready'
  * /items/selectAll (open to any authenticated role) and filtered client-side
  * by warehouse_id. Available stock = item_inventory - frozen_inventory
  * (frozen is held by audit-approved outbound orders — same definition as
- * ItemsPage). Total value = Σ(available × price) over priced items.
+ * ItemsPage).
+ *
+ * Cargo value comes from the server-authoritative `GET /items/CalSum?id=`
+ * (Σ price × item_inventory, includes frozen) shown as the headline 在库总货值;
+ * if that call fails we fall back to the same Σ computed client-side. The
+ * 可用货值 grid tile is the frozen-adjusted value Σ(available × price).
  */
 export function WarehouseDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -36,6 +41,9 @@ export function WarehouseDetailPage() {
   const [categories, setCategories] = useState<ItemCategory[]>([])
   // Total item count across ALL warehouses — used for the cargo share stat.
   const [allItemCount, setAllItemCount] = useState(0)
+  // Server-authoritative cargo value (CalSum). null until the fetch settles
+  // (or on failure — then we fall back to the client-computed stockValue).
+  const [cargoValue, setCargoValue] = useState<number | null>(null)
   const [state, setState] = useState<LoadState>('loading')
   const [error, setError] = useState<ApiError | null>(null)
 
@@ -49,16 +57,19 @@ export function WarehouseDetailPage() {
     setError(null)
     try {
       // Warehouse via selectAll + match (no admin-gated selectById needed);
-      // items + categories via their open reads. All resolve together.
-      const [allWarehouses, allItems, allCats] = await Promise.all([
+      // items + categories via their open reads. CalSum is the server-side
+      // cargo value for this warehouse (non-fatal — falls back to client Σ).
+      const [allWarehouses, allItems, allCats, sum] = await Promise.all([
         fetchAll(warehousesApi.selectAll),
         fetchAll(itemsApi.selectAll),
         fetchAll(itemCategoriesApi.selectAll).catch(() => [] as ItemCategory[]),
+        itemsApi.calSum(warehouseId).catch(() => null),
       ])
       const wh = allWarehouses.find((w) => w.id === warehouseId) ?? null
       setWarehouse(wh)
       setCategories(allCats)
       setAllItemCount(allItems.length)
+      setCargoValue(sum)
       if (!wh) {
         setError(new ApiError({ code: 'NOT_FOUND', status: 404, reason: '资源不存在', detail: '仓库不存在' }))
         setState('error')
@@ -83,13 +94,16 @@ export function WarehouseDetailPage() {
     return m
   }, [categories])
 
-  // Aggregate stats. totalValue counts only items with a price set.
+  // Aggregate stats. availableValue = Σ(available × price) (frozen-adjusted);
+  // stockValue = Σ(item_inventory × price), the same definition as the backend
+  // CalSum, used as a fallback when the server sum is unavailable.
   // cargoShare = this warehouse's item-kind count as a fraction of all items
   // across every warehouse (0..1); 0 when there are no items anywhere.
   const stats = useMemo(() => {
     let totalInventory = 0
     let totalFrozen = 0
-    let totalValue = 0
+    let availableValue = 0
+    let stockValue = 0
     let lowCount = 0
     items.forEach((it) => {
       const total = it.item_inventory ?? 0
@@ -97,14 +111,20 @@ export function WarehouseDetailPage() {
       const available = total - frozen
       totalInventory += total
       totalFrozen += frozen
-      if (it.price != null) totalValue += available * it.price
+      if (it.price != null) {
+        availableValue += available * it.price
+        stockValue += total * it.price
+      }
       if (it.warning_level != null && available <= it.warning_level) lowCount += 1
     })
     const cargoShare = allItemCount > 0 ? items.length / allItemCount : 0
-    return { totalInventory, totalFrozen, totalValue, lowCount, cargoShare }
+    return { totalInventory, totalFrozen, availableValue, stockValue, lowCount, cargoShare }
   }, [items, allItemCount])
 
   const availableTotal = stats.totalInventory - stats.totalFrozen
+  // Headline cargo value: prefer the server-authoritative CalSum, fall back to
+  // the client-computed Σ price × item_inventory when the call failed.
+  const cargoTotal = cargoValue ?? stats.stockValue
 
   return (
     <section className="section">
@@ -146,10 +166,31 @@ export function WarehouseDetailPage() {
           <p className={styles.muted}>正在加载仓库详情…</p>
         ) : (
           <>
-            {/* Inventory total value — full-width highlight tile, above the grid */}
+            {/* Inventory total value — full-width highlight tile, above the grid.
+                Server-authoritative (CalSum, Σ price × item_inventory, includes
+                frozen); falls back to the client Σ when the call failed. The
+                Chinese-uppercase amount sits under the figure, aligned with the
+                left hint line. */}
             <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
-              <div className={`${styles.statLabel} ${styles.largeLabel}`}>库存总值</div>
-              <div className={styles.valueTileFigure}>{formatCurrency(stats.totalValue)}</div>
+              <div className={styles.valueTileLeft}>
+                <div className={`${styles.statLabel} ${styles.largeLabel}`}>在库总货值</div>
+                <div className={styles.valueTileHint}>含冻结库存</div>
+              </div>
+              <div className={styles.valueTileRight}>
+                <div className={styles.valueTileFigure}>{formatCurrency(cargoTotal)}</div>
+                <div className={styles.valueTileChinese}>{formatChineseCurrency(cargoTotal)}</div>
+              </div>
+            </div>
+
+            <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
+              <div className={styles.valueTileLeft}>
+                <div className={`${styles.statLabel} ${styles.largeLabel}`}>可用总货值</div>
+                <div className={styles.valueTileHint}>不含冻结库存</div>
+              </div>
+              <div className={styles.valueTileRight}>
+                <div className={styles.valueTileFigure}>{formatCurrency(stats.availableValue)}</div>
+                <div className={styles.valueTileChinese}>{formatChineseCurrency(stats.availableValue)}</div>
+              </div>
             </div>
 
             {/* Summary stat tiles */}
@@ -283,4 +324,81 @@ function formatCurrency(value: number): string {
 function formatPercent(fraction: number): string {
   if (!Number.isFinite(fraction)) return '—'
   return `${(fraction * 100).toFixed(2)}%`
+}
+
+const CN_DIGITS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+const CN_INT_UNITS = ['', '拾', '佰', '仟']
+const CN_INT_SECTIONS = ['', '万', '亿', '兆']
+
+/**
+ * Convert a non-negative currency amount to Chinese uppercase (财务大写),
+ * e.g. 1234.56 -> "人民币壹仟贰佰叁拾肆元伍角陆分". Returns '—' for invalid
+ * input and handles 0 (零元整) and integer amounts (…元整) per accounting
+ * convention. This is the standard ¥-amount-to-words transform used on invoices.
+ */
+function formatChineseCurrency(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '—'
+  if (value === 0) return '人民币零元整'
+
+  // Split into integer and (up to 2) fractional digits — round to cents.
+  const rounded = Math.round(value * 100)
+  const intPart = Math.floor(rounded / 100)
+  const fen = rounded % 100
+  const jiao = Math.floor(fen / 10)
+  const cent = fen % 10
+
+  // Integer section -> Chinese, grouped in 4-digit sections (万/亿/兆).
+  let intStr = ''
+  if (intPart === 0) {
+    intStr = ''
+  } else {
+    let n = intPart
+    let sectionIdx = 0
+    const sections: string[] = []
+    while (n > 0) {
+      const section = n % 10000
+      n = Math.floor(n / 10000)
+      let sectionStr = ''
+      let zero = false
+      for (let i = 0; i < 4; i++) {
+        const d = Math.floor(section / Math.pow(10, 3 - i)) % 10
+        if (d === 0) {
+          zero = true
+        } else {
+          if (zero) {
+            sectionStr += '零'
+            zero = false
+          }
+          sectionStr += CN_DIGITS[d] + CN_INT_UNITS[3 - i]
+        }
+      }
+      if (sectionStr === '') {
+        // entire section is zero — keep a trailing zero flag for the next section
+      } else {
+        sectionStr += CN_INT_SECTIONS[sectionIdx]
+      }
+      sections.unshift(sectionStr)
+      sectionIdx++
+    }
+    intStr = sections.join('')
+    // Collapse a redundant leading 零 carried from an all-zero higher section.
+    intStr = intStr.replace(/^零+/, '')
+  }
+
+  let result = '人民币'
+  if (intStr) result += intStr + '元'
+  else result += '零元' // fractional-only amount, e.g. 0.50 -> 人民币零元伍角
+
+  if (jiao === 0 && cent === 0) {
+    result += '整'
+  } else {
+    if (jiao === 0) {
+      // When the 角 digit is 0 but there are 分, emit 零 before 分 (e.g. …元零伍分).
+      result += '零'
+    } else {
+      result += CN_DIGITS[jiao] + '角'
+    }
+    if (cent !== 0) result += CN_DIGITS[cent] + '分'
+  }
+  return result
 }

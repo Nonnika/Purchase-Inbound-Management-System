@@ -77,22 +77,24 @@
   background: var(--cds-layer-01-hover);
 }
 
+/* A row whose node has children is a toggle target: pointer cursor + a slightly
+   stronger hover so the whole-row affordance reads as clickable. Leaf rows keep
+   the default cursor (nothing to toggle). */
+.clickableRow {
+  cursor: pointer;
+}
+.clickableRow:hover {
+  background: var(--cds-layer-02);
+}
+
 .mono {
   font-family: var(--font-mono);
   letter-spacing: 0.16px;
 }
 
-/* Indented name cell conveys tree depth (8px grid × depth). */
-.nameCell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-03);
-}
-
-.indent {
-  display: inline-block;
-  width: var(--space-05);
-  flex-shrink: 0;
+/* Name cell is the positioning context for TreeIndent's absolute guide lines. */
+.nameTd {
+  position: relative;
 }
 
 /* Description can wrap; override the row's nowrap. */

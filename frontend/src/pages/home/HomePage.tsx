@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { overviewApi } from '@/api/overview'
+import { itemsApi } from '@/api/items'
 import { rolesApi } from '@/api/roles'
 import { fetchAll } from '@/api/pagination'
 import { toApiError, type ApiError } from '@/api/errors'
@@ -69,6 +70,9 @@ export function HomePage() {
 
   const [summary, setSummary] = useState<OverviewSummary | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
+  // Global cargo value (CalSum id=0, Σ price × item_inventory across all
+  // warehouses). Non-fatal: null until the fetch settles or on failure.
+  const [cargoValue, setCargoValue] = useState<number | null>(null)
   const [state, setState] = useState<LoadState>('loading')
   const [error, setError] = useState<ApiError | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
@@ -77,14 +81,16 @@ export function HomePage() {
     setState('loading')
     setError(null)
     try {
-      // Summary is the primary payload; roles is a non-fatal side fetch used
-      // only to resolve the current user's role name in the header.
-      const [s, rs] = await Promise.all([
+      // Summary is the primary payload; roles + cargoValue are non-fatal side
+      // fetches (role name resolution + the global cargo-value KPI).
+      const [s, rs, cv] = await Promise.all([
         overviewApi.summary(),
         fetchAll(rolesApi.selectAll).catch(() => [] as Role[]),
+        itemsApi.calSum(0).catch(() => null),
       ])
       setSummary(s)
       setRoles(rs)
+      setCargoValue(cv)
       setUpdatedAt(new Date())
       setState('ready')
     } catch (err) {
@@ -177,6 +183,12 @@ export function HomePage() {
             <div className={styles.kpis}>
               <KpiTile label="物品总数" value={summary.item_total} sub="全部在库物品" />
               <KpiTile
+                label="在库总货值"
+                value={cargoValue ?? 0}
+                sub="全部仓库 · 含冻结"
+                format={formatCargoValue}
+              />
+              <KpiTile
                 label="库存不足"
                 value={summary.low_inventory_count}
                 sub="达到预警阈值"
@@ -254,9 +266,11 @@ interface KpiTileProps {
   sub?: string
   highlight?: boolean
   warn?: boolean
+  /** Override the default integer locale formatting (e.g. for currency). */
+  format?: (value: number) => string
 }
 
-function KpiTile({ label, value, sub, highlight, warn }: KpiTileProps) {
+function KpiTile({ label, value, sub, highlight, warn, format }: KpiTileProps) {
   return (
     <div
       className={[
@@ -268,7 +282,7 @@ function KpiTile({ label, value, sub, highlight, warn }: KpiTileProps) {
         .join(' ')}
     >
       <div className={styles.kpiLabel}>{label}</div>
-      <div className={styles.kpiValue}>{value.toLocaleString('zh-CN')}</div>
+      <div className={styles.kpiValue}>{format ? format(value) : value.toLocaleString('zh-CN')}</div>
       {sub && <div className={styles.kpiSub}>{sub}</div>}
     </div>
   )
@@ -278,4 +292,15 @@ function KpiTile({ label, value, sub, highlight, warn }: KpiTileProps) {
 function formatClock(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/**
+ * Compact currency for the cargo-value KPI: ¥1,234.56 / ¥1.2万 / ¥1.2亿.
+ * Keeps the figure short enough for the 32px mono tile value.
+ */
+function formatCargoValue(value: number): string {
+  if (!Number.isFinite(value)) return '—'
+  if (value >= 1e8) return `¥${(value / 1e8).toFixed(2)}亿`
+  if (value >= 1e4) return `¥${(value / 1e4).toFixed(1)}万`
+  return `¥${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
