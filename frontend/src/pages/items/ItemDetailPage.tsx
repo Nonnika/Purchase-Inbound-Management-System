@@ -11,6 +11,7 @@ import type { ItemCategory } from '@/types/itemCategory'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
+import { formatChineseCurrency, formatCurrency } from '@/utils/currency'
 import styles from './ItemDetailPage.module.css'
 
 type LoadState = 'loading' | 'error' | 'ready'
@@ -74,9 +75,12 @@ export function ItemDetailPage() {
   const frozen = item?.frozen_inventory ?? 0
   const available = total - frozen
   const price = item?.price ?? null
-  const value = price != null ? available * price : null
+  // 库存总值 = 总库存 × 单价（含冻结），与 HomePage「在库总货值」/ CalSum 同口径。
+  const value = price != null ? total * price : null
   const warningLevel = item?.warning_level ?? null
-  const low = warningLevel != null && available <= warningLevel
+  // 预警按总库存判定（item_inventory ≤ warning_level），与后端 overview 的
+  // low_inventory_count 及 HomePage 预警榜口径一致。
+  const low = warningLevel != null && total <= warningLevel
 
   return (
     <section className="section">
@@ -121,16 +125,38 @@ export function ItemDetailPage() {
               </Button>
             </div>
 
+            {/* Inventory total value — full-width highlight tile, above the grid.
+                Mirrors WarehouseDetailPage's value tile: large figure on the
+                right with a Chinese-uppercase (财务大写) amount beneath it, label
+                + hint on the left. value = 总库存 × 单价（含冻结），与 CalSum 同口径。 */}
+            <div className={`${styles.statTile} ${styles.statTileHighlight} ${styles.valueTile}`}>
+              <div className={styles.valueTileLeft}>
+                <div className={`${styles.statLabel} ${styles.largeLabel}`}>库存总值</div>
+                <div className={styles.valueTileHint}>含冻结库存</div>
+              </div>
+              <div className={styles.valueTileRight}>
+                <div className={styles.valueTileFigure}>{value != null ? formatCurrency(value) : '—'}</div>
+                <div className={styles.valueTileChinese}>
+                  {value != null ? formatChineseCurrency(value) : '暂无单价'}
+                </div>
+              </div>
+            </div>
+
             {/* Inventory stat tiles */}
             <div className={styles.stats}>
-              <StatTile label="总库存" value={String(total)} />
-              <StatTile label="冻结库存" value={String(frozen)} />
-              <StatTile label="可用库存" value={String(available)} valueClass={low ? styles.statValueWarn : undefined} />
-              <StatTile label="单价" value={price != null ? `¥${price}` : '—'} />
-              <StatTile label="库存总值" value={value != null ? formatCurrency(value) : '—'} />
+              <StatTile label="总库存" value={String(total)} sub="件" />
+              <StatTile label="冻结库存" value={String(frozen)} sub="出库订单占用" />
+              <StatTile
+                label="可用库存"
+                value={String(available)}
+                sub="总库存 − 冻结"
+                valueClass={low ? styles.statValueWarn : undefined}
+              />
+              <StatTile label="单价" value={price != null ? formatCurrency(price) : '—'} />
               <StatTile
                 label="预警阈值"
                 value={warningLevel != null ? String(warningLevel) : '—'}
+                sub={warningLevel != null ? (low ? '当前库存不足' : '当前库存充足') : '未设置'}
                 valueClass={low ? styles.statValueWarn : undefined}
               />
             </div>
@@ -197,11 +223,22 @@ export function ItemDetailPage() {
   )
 }
 
-function StatTile({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+function StatTile({
+  label,
+  value,
+  valueClass,
+  sub,
+}: {
+  label: string
+  value: string
+  valueClass?: string
+  sub?: string
+}) {
   return (
     <div className={styles.statTile}>
       <div className={styles.statLabel}>{label}</div>
       <div className={[styles.statValue, valueClass].filter(Boolean).join(' ')}>{value}</div>
+      {sub && <div className={styles.statSub}>{sub}</div>}
     </div>
   )
 }
@@ -212,12 +249,4 @@ function formatTime(iso: string): string {
   if (Number.isNaN(d.getTime())) return iso
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-function formatCurrency(value: number): string {
-  if (!Number.isFinite(value)) return '—'
-  return `¥${value.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
 }

@@ -1,0 +1,131 @@
+/* AboutPage —— 项目与开发者简介。沿用面板外壳与 Carbon 分层。 */
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-05);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-07);
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.intro {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+  margin-top: var(--space-03);
+  max-width: 640px;
+}
+
+/* —— 项目概览面板 —— */
+.panel {
+  background: var(--cds-layer-01);
+  padding: var(--space-06) var(--space-05);
+  margin-bottom: var(--space-07);
+}
+
+.panelTitle {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: var(--space-05);
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  row-gap: var(--space-03);
+  column-gap: var(--space-05);
+  font-size: 14px;
+  letter-spacing: 0.16px;
+}
+
+.metaKey {
+  color: var(--cds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.32px;
+  align-self: center;
+}
+
+.metaVal {
+  color: var(--cds-text-primary);
+}
+
+.stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-03);
+}
+
+/* —— 开发者卡片：单列纵置 —— */
+.devs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-06);
+}
+
+.devCard {
+  background: var(--cds-layer-01);
+  padding: var(--space-06) var(--space-05);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-06);
+}
+
+.devHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-04);
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-circle);
+  background: var(--blue-60);
+  color: var(--cds-text-on-color);
+  font-size: 20px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+
+.devName {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.devHandle {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gray-60);
+  letter-spacing: 0.32px;
+}
+
+.devRole {
+  font-size: 14px;
+  color: var(--cds-text-secondary);
+  letter-spacing: 0.16px;
+}
+
+.devContact {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--cds-link-primary);
+  letter-spacing: 0;
+  word-break: break-all;
+}
+
+.devContact:hover {
+  color: var(--cds-link-primary-hover);
+}

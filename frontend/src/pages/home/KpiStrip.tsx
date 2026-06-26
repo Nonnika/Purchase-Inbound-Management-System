@@ -33,7 +33,7 @@ export function KpiStrip({
       <div className={`${styles.kpi} ${styles.kpiHighlight}`}>
         <div className={styles.kpiLabel}>在库总货值</div>
         <div className={styles.kpiValue}>{cargoValue == null ? '—' : formatCargoValue(cargoValue)}</div>
-        <div className={styles.kpiSub}>全部仓库 · 含冻结</div>
+        <div className={styles.kpiSub}>全部仓库总值</div>
       </div>
       <div className={styles.kpi}>
         <div className={styles.kpiLabel}>物品总数</div>

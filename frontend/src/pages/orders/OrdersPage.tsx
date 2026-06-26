@@ -232,6 +232,14 @@ export function OrdersPage() {
     }
   }, [selected])
 
+  // Outbound requests are bounded by the selected item's available stock
+  // (item_inventory − frozen_inventory). Used to hint + clamp the count input.
+  const isOutboundCreate = createForm.type === ORDER_TYPE.OUTBOUND
+  const selectedItem = createForm.itemId ? itemsMap.get(createForm.itemId) ?? null : null
+  const availableQty = selectedItem
+    ? (selectedItem.item_inventory ?? 0) - (selectedItem.frozen_inventory ?? 0)
+    : null
+
   const openCreate = () => {
     // Default to whichever type this user is allowed to create.
     const defaultType = canCreatePurchase ? ORDER_TYPE.PURCHASE : ORDER_TYPE.OUTBOUND
@@ -249,11 +257,41 @@ export function OrdersPage() {
       return
     }
     const count = Number(createForm.count)
-    if (!Number.isFinite(count) || count <= 0) {
+    if (!Number.isFinite(count) || count <= 0 || !Number.isInteger(count)) {
       setCreateError(
         new ApiError({ code: 'BAD_REQUEST', status: null, reason: '请求参数有误', detail: '数量必须为正整数' }),
       )
       return
+    }
+    // Outbound requests can't exceed the item's available stock. The input is
+    // clamped client-side, but re-check here in case the item was switched or a
+    // value pasted after the clamp ran. Also blocks the no-available-stock case
+    // outright so a disabled-but-cleared input can never slip through.
+    if (createForm.type === ORDER_TYPE.OUTBOUND) {
+      const it = itemsMap.get(createForm.itemId)
+      const available = (it?.item_inventory ?? 0) - (it?.frozen_inventory ?? 0)
+      if (available <= 0) {
+        setCreateError(
+          new ApiError({
+            code: 'BAD_REQUEST',
+            status: null,
+            reason: '请求参数有误',
+            detail: '该物品无可用库存，无法出库',
+          }),
+        )
+        return
+      }
+      if (count > available) {
+        setCreateError(
+          new ApiError({
+            code: 'BAD_REQUEST',
+            status: null,
+            reason: '请求参数有误',
+            detail: `出库数量不能超过可出库数量（${available} 件）`,
+          }),
+        )
+        return
+      }
     }
     setSubmitting(true)
     setCreateError(null)
@@ -493,9 +531,31 @@ export function OrdersPage() {
         <TextInput
           label="数量 *"
           type="number"
+          step={1}
+          min={1}
+          max={isOutboundCreate && availableQty != null ? availableQty : undefined}
           value={createForm.count}
-          onChange={(e) => setCreateForm((f) => ({ ...f, count: e.target.value }))}
+          disabled={isOutboundCreate && availableQty === 0}
+          onChange={(e) => {
+            let v = e.target.value
+            // Outbound: hard-clamp the typed value to available stock so a count
+            // exceeding it can never be submitted.
+            if (isOutboundCreate && availableQty != null && v !== '') {
+              const n = Number(v)
+              if (Number.isFinite(n) && n > availableQty) v = String(availableQty)
+            }
+            setCreateForm((f) => ({ ...f, count: v }))
+          }}
           placeholder="正整数"
+          helper={
+            isOutboundCreate
+              ? availableQty == null
+                ? '请先选择物品'
+                : availableQty === 0
+                  ? '该物品无可用库存，无法出库'
+                  : `可出库数量：${availableQty} 件`
+              : undefined
+          }
         />
         <TextInput
           label="备注（可选）"

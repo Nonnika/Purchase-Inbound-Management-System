@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
   { to: '/categories', label: '分类管理' },
   { to: '/users', label: '用户管理', roles: [ROLE_ID.ADMIN] },
   { to: '/departments', label: '部门管理' },
+  { to: '/about', label: '关于' },
 ]
 
 /**
@@ -97,7 +98,7 @@ export function AppLayout() {
 
       <footer className={styles.footer}>
         <div className="container">
-          Purchase Inbound Management System
+          © 2026 Alpha Studio 版权所有
         </div>
       </footer>
     </div>
