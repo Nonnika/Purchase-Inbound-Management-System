@@ -64,17 +64,11 @@
   gap: var(--space-03);
 }
 
-/* —— 开发者卡片 —— */
+/* —— 开发者卡片：单列纵置 —— */
 .devs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: var(--space-06);
-}
-
-@media (max-width: 672px) {
-  .devs {
-    grid-template-columns: 1fr;
-  }
 }
 
 .devCard {
@@ -82,7 +76,7 @@
   padding: var(--space-06) var(--space-05);
   display: flex;
   flex-direction: column;
-  gap: var(--space-05);
+  gap: var(--space-06);
 }
 
 .devHead {

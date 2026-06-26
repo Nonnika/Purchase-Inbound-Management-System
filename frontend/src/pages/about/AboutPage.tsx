@@ -1,3 +1,4 @@
+import { href } from 'react-router-dom'
 import styles from './AboutPage.module.css'
 
 interface Developer {
@@ -6,6 +7,8 @@ interface Developer {
   /** 括号内的昵称/ID。 */
   handle: string
   role: string
+  /** 职责分工描述。 */
+  domain: string
   email: string
 }
 
@@ -14,12 +17,14 @@ const developers: Developer[] = [
     name: 'Nonnika',
     handle: 'Nonnika.Y',
     role: '后端开发',
+    domain: 'liewyoung.top',
     email: 'SunCanHelpU@outlook.com',
   },
   {
     name: 'Syrnaxei',
     handle: 'KanataN',
     role: '前端开发',
+    domain: 'struct.top',
     email: 'm1725576689@gmail.com',
   },
 ]
@@ -42,8 +47,8 @@ export function AboutPage() {
           </div>
         </div>
 
+        <h2 className={styles.panelTitle}>项目信息</h2>
         <section className={styles.panel}>
-          <h2 className={styles.panelTitle}>项目信息</h2>
           <dl className={styles.metaGrid}>
             <dt className={styles.metaKey}>项目名称</dt>
             <dd className={styles.metaVal}>Purchase Inbound Management System (PIMS)</dd>
@@ -57,7 +62,15 @@ export function AboutPage() {
             <dt className={styles.metaKey}>设计规范</dt>
             <dd className={styles.metaVal}>IBM Carbon Design</dd>
             <dt className={styles.metaKey}>项目链接</dt>
-            <dt className={styles.metaVal}>https://github.com/Nonnika/Purchase-Inbound-Management-System</dt>
+            <dd className={styles.metaVal}>
+              <a
+                href="https://github.com/Nonnika/Purchase-Inbound-Management-System"
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+              </a>
+            </dd>
             <dt className={styles.metaKey}>版权</dt>
             <dd className={styles.metaVal}>© 2026 Alpha Studio 版权所有</dd>
           </dl>
@@ -79,9 +92,20 @@ export function AboutPage() {
                   <div className={styles.devRole}>{dev.role}</div>
                 </div>
               </div>
-              <a className={styles.devContact} href={`mailto:${dev.email}`}>
-                {dev.email}
-              </a>
+              <dl className={styles.metaGrid}>
+                <dt className={styles.metaKey}>昵称</dt>
+                <dd className={styles.metaVal}>{dev.handle}</dd>
+                <dt className={styles.metaKey}>职责</dt>
+                <dd className={styles.metaVal}>{dev.role}</dd>
+                <dt className={styles.metaKey}>个人网站</dt>
+                <dd className={styles.metaVal}>{dev.domain}</dd>
+                <dt className={styles.metaKey}>邮箱</dt>
+                <dd className={styles.metaVal}>
+                  <a className={styles.devContact} href={`mailto:${dev.email}`}>
+                    {dev.email}
+                  </a>
+                </dd>
+              </dl>
             </article>
           ))}
         </div>
