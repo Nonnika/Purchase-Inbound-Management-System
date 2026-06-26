@@ -1,4 +1,3 @@
-import { href } from 'react-router-dom'
 import styles from './AboutPage.module.css'
 
 interface Developer {
