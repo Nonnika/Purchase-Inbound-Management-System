@@ -1,0 +1,57 @@
+.row {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr 120px;
+  align-items: center;
+  gap: var(--space-05);
+  padding: var(--space-04) 0;
+  border-bottom: 1px solid var(--cds-border-tile);
+}
+.row:last-child {
+  border-bottom: none;
+}
+
+.name {
+  font-size: 14px;
+  letter-spacing: 0.16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barTrack {
+  position: relative;
+  height: 8px;
+  background: var(--cds-layer-02);
+}
+
+.barFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--blue-60);
+  transition: width 0.2s ease;
+}
+
+.value {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+.valueSum {
+  color: var(--cds-text-primary);
+  font-weight: 600;
+}
+.valuePct {
+  color: var(--cds-text-secondary);
+  font-size: 11px;
+}
+
+@media (max-width: 672px) {
+  .row {
+    grid-template-columns: 100px 1fr;
+  }
+  .value {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}
