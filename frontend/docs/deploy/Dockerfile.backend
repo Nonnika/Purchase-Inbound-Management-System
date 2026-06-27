@@ -1,0 +1,36 @@
+# =============================================================================
+# PIMS 后端镜像 —— 多阶段构建
+# 阶段1：golang 编译出静态二进制
+# 阶段2：alpine 运行，含 netcat 用于等待 MySQL
+# 构建上下文为仓库根目录（见 docker-compose.yml 的 context: .）
+# =============================================================================
+
+# ---------- 阶段1：编译 ----------
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /src
+
+# 先拷依赖以利用层缓存
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+
+# 拷后端源码并编译（CGO 关闭产出静态二进制，适配 alpine）
+COPY backend/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/server ./cmd/server
+
+# ---------- 阶段2：运行 ----------
+FROM alpine:3.20
+
+# ca-certificates：HTTPS 出站；netcat-openbsd：等待 MySQL 端口；tzdata：时区
+RUN apk add --no-cache ca-certificates netcat-openbsd tzdata
+
+WORKDIR /app
+COPY --from=builder /out/server /app/server
+COPY frontend/docs/deploy/wait-for-mysql.sh /app/wait-for-mysql.sh
+RUN chmod +x /app/wait-for-mysql.sh /app/server
+
+EXPOSE 8080
+
+# 先等 MySQL 端口可连，再 exec 后端二进制
+ENTRYPOINT ["/app/wait-for-mysql.sh"]
+CMD ["/app/server"]
