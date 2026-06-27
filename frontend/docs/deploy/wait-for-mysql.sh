@@ -7,7 +7,7 @@
 # =============================================================================
 set -e
 
-host="${DB_HOST:-db}"
+host="${DB_ADDR:-db}"
 port="${DB_PORT:-3306}"
 max_wait="${MYSQL_WAIT_TIMEOUT:-60}"
 elapsed=0

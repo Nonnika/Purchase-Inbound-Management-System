@@ -38,7 +38,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Go 后端：多阶段构建，等 MySQL 健康后启动，监听 :8080
-  # 注意：需先应用 config.go 的 DB_HOST 补丁（见 DEPLOYMENT.md 前置步骤）
+  # 后端 config.go 通过 DB_ADDR 读取数据库地址（compose 服务名 db）
   # ---------------------------------------------------------------------------
   backend:
     build:
@@ -47,7 +47,7 @@ services:
     container_name: pims-backend
     restart: unless-stopped
     environment:
-      DB_HOST: db                 # compose 服务名，指向 MySQL 容器
+      DB_ADDR: db                 # compose 服务名，指向 MySQL 容器（后端读 DB_ADDR）
       DB_PORT: "3306"             # 容器内 MySQL 端口（非主机映射端口）
       DB_NAME: ${DB_NAME:-pims}
       DB_USER: root

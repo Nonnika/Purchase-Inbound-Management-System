@@ -41,57 +41,28 @@ sudo usermod -aG docker $USER   # 重新登录生效
 
 ---
 
-## 2. ⚠️ 必做：后端 DB_HOST 补丁
+## 2. 后端 DB_ADDR 支持（已应用 ✅）
 
-**这是唯一的阻塞项。** 后端 `internal/config/config.go` 的 DSN 硬编码了 `127.0.0.1`：
-
-```go
-func (c *Config) Init(dbName string) {
-	template := "%s:%s@tcp(127.0.0.1:%s)/%s?%s"   // ← 127.0.0.1 写死
-	c.Dsn = fmt.Sprintf(template, c.user, c.password, c.port, dbName, c.params)
-}
-```
-
-在容器内 `127.0.0.1` 指向后端容器自身，连不到 MySQL 容器，后端会启动失败。需改成从环境变量 `DB_HOST` 读取（默认回退 `127.0.0.1`，保持本地开发兼容）。
-
-**修改 `backend/internal/config/config.go`：**
+后端 `internal/config/config.go` 已支持从环境变量读取数据库地址，DSN 不再硬编码 `127.0.0.1`：
 
 ```go
 type Config struct {
-	user     string
-	password string
-	host     string
-	port     string
-	params   string
-	Dsn      string
-}
-
-func NewConfig(user, password, host, port, params string) *Config {
-	return &Config{user: user, password: password, host: host, port: port, params: params}
+	user, password, addr, port, params string
+	Dsn                                string
 }
 
 func (c *Config) Init(dbName string) {
-	host := c.host
-	if host == "" {
-		host = "127.0.0.1"   // 本地开发不设 DB_HOST 时回退
-	}
-	c.Dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", c.user, c.password, host, c.port, dbName, c.params)
+	c.Dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", c.user, c.password, c.addr, c.port, dbName, c.params)
 }
 ```
 
-**修改 `backend/cmd/server/main.go`（第 26 行，传入 `DB_HOST`）：**
+`cmd/server/main.go` 通过 `DB_ADDR` 传入：
 
 ```go
-cfg := config.NewConfig(
-	os.Getenv("DB_USER"),
-	os.Getenv("DB_PASSWD"),
-	os.Getenv("DB_HOST"),     // ← 新增
-	os.Getenv("DB_PORT"),
-	os.Getenv("DB_PARAMS"),
-)
+cfg := config.NewConfig(os.Getenv("DB_USER"), os.Getenv("DB_PASSWD"), os.Getenv("DB_ADDR"), os.Getenv("DB_PORT"), os.Getenv("DB_PARAMS"))
 ```
 
-> 说明：按项目分工，`backend/` 不由前端侧修改，请由后端同学应用此补丁。补丁向后兼容——本地开发不设 `DB_HOST` 时行为不变。docker-compose.yml 中已为 backend 设置 `DB_HOST: db`。
+> ⚠️ 环境变量名是 **`DB_ADDR`**（不是 `DB_HOST`）。docker-compose.yml 已为 backend 设置 `DB_ADDR: db`（compose 服务名，指向 MySQL 容器）。本地开发不设 `DB_ADDR` 时，`addr` 为空，DSN 会拼成 `tcp(:port)`——本地仍需在 `.env` 里设 `DB_ADDR=127.0.0.1`，否则连不上。
 
 ---
 
@@ -122,7 +93,7 @@ vi .env
 ├── docker-compose.yml          ← 来自 deploy/
 ├── .dockerignore               ← 来自 deploy/
 ├── .env                        ← 来自 .env.example（已改密码）
-├── backend/                    （已应用 DB_HOST 补丁）
+├── backend/                    （已支持 DB_ADDR，见第 2 节）
 ├── frontend/
 │   └── docs/
 │       ├── init.sql            ← 库初始化（建表+角色+管理员）
@@ -222,7 +193,7 @@ docker compose pull && docker compose up -d   # 更新镜像
 
 ```bash
 cd /opt/pims
-git pull                              # 拉取新代码（含新的 DB_HOST 补丁/前端改动）
+git pull                              # 拉取新代码
 docker compose up -d --build          # 重新构建变更的服务并滚动重启
 ```
 
@@ -294,7 +265,7 @@ server {
 
 | 现象 | 排查 |
 |------|------|
-| backend 容器反复重启 | `docker compose logs backend`；多半是 DB_HOST 补丁未应用，或 MySQL 未就绪。确认 `DB_HOST=db` 且已应用第 2 节补丁 |
+| backend 容器反复重启 | `docker compose logs backend`；多半是 `DB_ADDR` 未指向 MySQL 容器（应为 `db`），或 MySQL 未就绪。确认 compose 中 `DB_ADDR: db` 且 `DB_PORT: 3306` |
 | backend 日志 `JWT_SECRET` 校验失败 | `.env` 的 `JWT_SECRET` 不足 32 字节，用 `openssl rand -base64 48` 生成 |
 | 登录 401 / 角色不存在 | init.sql 未执行（数据目录非空时跳过）。`docker compose down -v` 后重新 `up`，或手动导入 init.sql |
 | 前端能打开但 `/api` 502 | backend 未启动或健康检查未过；`docker compose ps` 看 backend 状态 |
@@ -315,3 +286,4 @@ server {
 | `nginx.conf` | 前端 Nginx 配置 | ❌ 原位引用 |
 | `wait-for-mysql.sh` | 后端启动前等待 MySQL | ❌ 原位引用 |
 | `../init.sql` | 数据库初始化脚本 | ❌ 原位挂载 |
+
