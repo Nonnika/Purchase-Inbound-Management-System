@@ -1,0 +1,33 @@
+# =============================================================================
+# 仓库根目录 .dockerignore
+# 用法：复制到仓库根目录（与 docker-compose.yml 同级），减小构建上下文体积
+# =============================================================================
+
+# Git / IDE
+.git
+.gitignore
+.idea
+.vscode
+
+# 文档与无关产物
+**/*.md
+!frontend/docs/DEVELOPMENT.md
+LICENSE
+
+# 后端：本地编译产物与本地环境
+backend/server
+backend/.env
+backend/*.tsbuildinfo
+backend/tests
+
+# 前端：依赖与构建产物
+frontend/node_modules
+frontend/dist
+frontend/.vite
+frontend/*.tsbuildinfo
+frontend/.env
+
+# 通用
+**/__pycache__
+**/.DS_Store
+**/*.log
