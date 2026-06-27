@@ -1,0 +1,11 @@
+# =============================================================================
+# PIMS MySQL 镜像 —— 国内镜像源副本（Dockerfile.db.cn）
+# 与 Dockerfile.db 的区别：基础镜像改为 DaoCloud 国内源。
+# 同样把 init.sql 烤进镜像，避免 bind-mount 单文件的 Permission denied 问题。
+# 由 docker-compose.cn.yml 引用。
+# =============================================================================
+
+FROM docker.m.daocloud.io/library/mysql:8.0
+
+# 首次启动自动执行（仅数据目录为空时）。文件名前缀 01- 保证排序在最前。
+COPY frontend/docs/init.sql /docker-entrypoint-initdb.d/01-init.sql

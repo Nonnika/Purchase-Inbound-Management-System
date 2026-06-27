@@ -1,18 +1,26 @@
 # =============================================================================
-# PIMS Docker Compose 部署编排
-# 用法：将本文件复制到【仓库根目录】后执行 `docker compose up -d --build`
-# （相对路径 ./frontend/... 均以仓库根目录为基准，故必须放在根目录运行）
-# 环境变量从同目录的 .env 读取（复制 .env.example 为 .env 后修改）
+# PIMS Docker Compose 部署编排 —— 国内镜像源副本（docker-compose.cn.yml）
+# 与 docker-compose.yml 的区别：
+#   1) MySQL 镜像改为 DaoCloud 国内源 docker.m.daocloud.io/library/mysql:8.0
+#   2) backend / frontend 的 build 指向 .cn 副本 Dockerfile，其 FROM 基础镜像
+#      均已改为国内源，且后端设 GOPROXY、前端设 npmmirror，使 `build` 也能在国内完成。
+# 用法：将本文件复制到【仓库根目录】后执行
+#   `docker compose -f docker-compose.cn.yml up -d --build`
+# 原文件 docker-compose.yml 保持不变，二者二选一，勿同时运行（端口/卷冲突）。
+# 环境变量从同目录的 .env 读取。
+#
+# 镜像源说明：主源 docker.m.daocloud.io（DaoCloud）。若拉取失败可改用备选源，
+# 全文替换前缀为 docker.1panel.live/library/ 或 docker.1ms.run/library/。
 # =============================================================================
 
 services:
   # ---------------------------------------------------------------------------
-  # MySQL 8.0：init.sql 烤进镜像（Dockerfile.db），首次启动自动执行建表 + 角色 + 管理员
+  # MySQL 8.0：init.sql 烤进镜像（Dockerfile.db.cn，国内源），首次启动自动执行建表 + 角色 + 管理员
   # ---------------------------------------------------------------------------
   db:
     build:
       context: .
-      dockerfile: frontend/docs/deploy/Dockerfile.db
+      dockerfile: frontend/docs/deploy/Dockerfile.db.cn
     container_name: pims-db
     restart: unless-stopped
     environment:
@@ -37,13 +45,13 @@ services:
       - pims-net
 
   # ---------------------------------------------------------------------------
-  # Go 后端：多阶段构建，等 MySQL 健康后启动，监听 :8080
+  # Go 后端：多阶段构建（国内源 Dockerfile + GOPROXY），等 MySQL 健康后启动
   # 后端 config.go 通过 DB_ADDR 读取数据库地址（compose 服务名 db）
   # ---------------------------------------------------------------------------
   backend:
     build:
       context: .
-      dockerfile: frontend/docs/deploy/Dockerfile.backend
+      dockerfile: frontend/docs/deploy/Dockerfile.backend.cn
     container_name: pims-backend
     restart: unless-stopped
     environment:
@@ -65,12 +73,12 @@ services:
       - pims-net
 
   # ---------------------------------------------------------------------------
-  # 前端：多阶段构建（Node 编译 → Nginx 托管静态资源 + 反代 /api 到后端）
+  # 前端：多阶段构建（国内源 Dockerfile + npmmirror → Nginx 托管静态资源 + 反代 /api）
   # ---------------------------------------------------------------------------
   frontend:
     build:
       context: .
-      dockerfile: frontend/docs/deploy/Dockerfile.frontend
+      dockerfile: frontend/docs/deploy/Dockerfile.frontend.cn
     container_name: pims-frontend
     restart: unless-stopped
     depends_on:

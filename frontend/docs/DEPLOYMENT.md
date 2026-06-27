@@ -151,6 +151,11 @@ docker compose logs -f db         # 确认 init.sql 执行完毕
 ... Database connection established successfully
 ```
 
+如果数据库空表则执行：
+```
+chmod 644 /您的宿主机路径/01-init.sql
+```
+
 ---
 
 ## 6. 验证
