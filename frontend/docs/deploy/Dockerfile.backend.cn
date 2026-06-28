@@ -1,0 +1,47 @@
+# =============================================================================
+# PIMS 后端镜像 —— 国内镜像源副本（Dockerfile.backend.cn）
+# 与 Dockerfile.backend 的区别：
+#   1) FROM 基础镜像改为 DaoCloud 国内镜像源 docker.m.daocloud.io/library/...
+#   2) 增加 GOPROXY=https://goproxy.cn,direct —— proxy.golang.org 在国内被墙，
+#      否则 `go mod download` 会超时失败。
+# 由 docker-compose.cn.yml 引用，原 Dockerfile.backend 保持不变。
+# =============================================================================
+
+# ---------- 阶段1：编译 ----------
+FROM docker.m.daocloud.io/library/golang:1.26-alpine AS builder
+
+WORKDIR /src
+
+# 国内 Go 模块代理（proxy.golang.org 被墙，goproxy.cn 为七牛维护的国内源）
+ENV GOPROXY=https://goproxy.cn,direct
+
+# 先拷依赖以利用层缓存
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+
+# 拷后端源码并编译（CGO 关闭产出静态二进制，适配 alpine）
+COPY backend/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/server ./cmd/server
+
+# ---------- 阶段2：运行 ----------
+FROM docker.m.daocloud.io/library/alpine:3.20
+
+# ca-certificates：HTTPS 出站；netcat-openbsd：等待 MySQL 端口；tzdata：时区
+RUN apk add --no-cache ca-certificates netcat-openbsd tzdata
+
+WORKDIR /app
+COPY --from=builder /out/server /app/server
+COPY frontend/docs/deploy/wait-for-mysql.sh /app/wait-for-mysql.sh
+RUN chmod +x /app/wait-for-mysql.sh /app/server
+
+# godotenv.Load() 会在 CWD 找 .env，找不到就返回 error，而 main.go 收到 error
+# 会直接 return（后端进程立即退出 → nginx 反代 /api 时 502）。容器内的 env 变量
+# 由 compose 的 environment: 注入 os.Environ，因此这里放一个空 .env 让 Load()
+# 成功返回即可，不会覆盖运行时注入的变量。
+RUN touch /app/.env
+
+EXPOSE 8080
+
+# 先等 MySQL 端口可连，再 exec 后端二进制
+ENTRYPOINT ["/app/wait-for-mysql.sh"]
+CMD ["/app/server"]

@@ -1,0 +1,19 @@
+# =============================================================================
+# PIMS MySQL 镜像 —— 把 init.sql 烤进镜像（Dockerfile.db）
+#
+# 为什么不用 bind-mount 单文件：
+#   原方案 `./frontend/docs/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro`
+#   在 Linux 服务器上常报 `Permission denied`——bind-mount 单文件时，宿主机文件
+#   的权限/SELinux 标签会原样带进容器，容器内 mysql 进程可能无法读取（文件从
+#   Windows 传到 Linux 后权限常被带歪，或 SELinux 拦截跨标签访问）。
+#
+#   改为构建时 COPY 进镜像：文件落在镜像层内，权限固定 644 root:root，无 bind-mount
+#   标签问题，mysql entrypoint 在首次初始化时自动执行 /docker-entrypoint-initdb.d/。
+#
+# 构建上下文为仓库根目录（见 docker-compose.yml 的 context: .）。
+# =============================================================================
+
+FROM mysql:8.0
+
+# 首次启动自动执行（仅数据目录为空时）。文件名前缀 01- 保证排序在最前。
+COPY frontend/docs/init.sql /docker-entrypoint-initdb.d/01-init.sql
