@@ -38,3 +38,36 @@ func TestCanonicalJSONRejectsTrailingValues(t *testing.T) {
 		t.Fatal("canonicalJSON() error = nil, want trailing value error")
 	}
 }
+
+func TestBuildOrderEventPayloadKeepsServerOrderFieldsAuthoritative(t *testing.T) {
+	payload, err := buildOrderEventPayload(&model.Order{
+		ItemId:    1,
+		UserId:    3,
+		Count:     2,
+		OrderType: OrderTypePurchase,
+	}, json.RawMessage(`{"item_id":999,"count":100,"note":"client data"}`))
+	if err != nil {
+		t.Fatalf("buildOrderEventPayload() error = %v", err)
+	}
+
+	var body struct {
+		ItemId    int64          `json:"item_id"`
+		UserId    int64          `json:"user_id"`
+		Count     int64          `json:"count"`
+		OrderType string         `json:"order_type"`
+		Metadata  map[string]any `json:"metadata"`
+	}
+	if err := json.Unmarshal(payload, &body); err != nil {
+		t.Fatalf("payload is not valid json: %v", err)
+	}
+
+	if body.ItemId != 1 || body.UserId != 3 || body.Count != 2 || body.OrderType != OrderTypePurchase {
+		t.Fatalf("server fields were not authoritative: %#v", body)
+	}
+	if body.Metadata["note"] != "client data" {
+		t.Fatalf("metadata note = %#v, want client data", body.Metadata["note"])
+	}
+	if body.Metadata["item_id"] == nil {
+		t.Fatal("metadata did not preserve client-provided item_id")
+	}
+}

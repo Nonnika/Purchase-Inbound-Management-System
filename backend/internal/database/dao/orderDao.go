@@ -177,25 +177,22 @@ func (o *OrderDao) Create(order *model.Order, operatorUserId *int64, payload jso
 }
 
 func buildOrderEventPayload(order *model.Order, payload json.RawMessage) (json.RawMessage, error) {
+	eventPayload := map[string]any{
+		"item_id":    order.ItemId,
+		"user_id":    order.UserId,
+		"count":      order.Count,
+		"order_type": order.OrderType,
+	}
 	if len(bytes.TrimSpace(payload)) == 0 {
-		return json.Marshal(struct {
-			ItemId    int64  `json:"item_id"`
-			UserId    int64  `json:"user_id"`
-			Count     int64  `json:"count"`
-			OrderType string `json:"order_type"`
-		}{
-			ItemId:    order.ItemId,
-			UserId:    order.UserId,
-			Count:     order.Count,
-			OrderType: order.OrderType,
-		})
+		return json.Marshal(eventPayload)
 	}
 
-	var raw json.RawMessage
-	if err := json.Unmarshal(payload, &raw); err != nil {
+	metadata, err := decodeJSONValue(payload)
+	if err != nil {
 		return nil, err
 	}
-	return raw, nil
+	eventPayload["metadata"] = metadata
+	return json.Marshal(eventPayload)
 }
 
 func (o *OrderDao) AppendEvent(orderId int64, step string, operatorUserId *int64, payload json.RawMessage) (*model.OrderEvent, error) {
@@ -490,6 +487,15 @@ func canonicalJSON(payload json.RawMessage) ([]byte, error) {
 		return []byte("{}"), nil
 	}
 
+	value, err := decodeJSONValue(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(value)
+}
+
+func decodeJSONValue(payload json.RawMessage) (any, error) {
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.UseNumber()
 
@@ -506,7 +512,7 @@ func canonicalJSON(payload json.RawMessage) ([]byte, error) {
 		return nil, err
 	}
 
-	return json.Marshal(value)
+	return value, nil
 }
 
 func sha256Hex(data []byte) string {

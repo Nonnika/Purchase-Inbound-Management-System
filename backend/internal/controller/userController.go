@@ -6,6 +6,9 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nonnika/pims/internal/database/dao"
@@ -17,8 +20,9 @@ import (
 
 // UserController 用于处理 Users 表相关的请求
 type UserController struct {
-	dao    *dao.UserDao
-	jwtMgr *jwt.JManager
+	dao           *dao.UserDao
+	jwtMgr        *jwt.JManager
+	loginAttempts *loginAttemptTracker
 }
 
 type registerUserRequest struct {
@@ -30,8 +34,38 @@ type registerUserRequest struct {
 	DepartmentId int64   `json:"department_id" form:"department_id"`
 }
 
+const (
+	loginFailureLimit    = 5
+	loginLockoutDuration = 15 * time.Minute
+	invalidLoginMessage  = "username or password is incorrect"
+)
+
+type loginAttemptTracker struct {
+	mu       sync.Mutex
+	limit    int
+	lockout  time.Duration
+	attempts map[string]loginAttempt
+}
+
+type loginAttempt struct {
+	Count       int
+	LockedUntil time.Time
+}
+
+func newLoginAttemptTracker(limit int, lockout time.Duration) *loginAttemptTracker {
+	return &loginAttemptTracker{
+		limit:    limit,
+		lockout:  lockout,
+		attempts: make(map[string]loginAttempt),
+	}
+}
+
 func NewUserController(dao *dao.UserDao, jwtMgr *jwt.JManager) *UserController {
-	return &UserController{dao: dao, jwtMgr: jwtMgr}
+	return &UserController{
+		dao:           dao,
+		jwtMgr:        jwtMgr,
+		loginAttempts: newLoginAttemptTracker(loginFailureLimit, loginLockoutDuration),
+	}
 }
 
 func (u *UserController) SelectAll(ctx *gin.Context) {
@@ -443,6 +477,66 @@ func (u *UserController) UpdatePhoneById(ctx *gin.Context) {
 	u.update(ctx, user)
 }
 
+func (l *loginAttemptTracker) IsLocked(key string, now time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	attempt, ok := l.attempts[key]
+	if !ok {
+		return false
+	}
+	if attempt.LockedUntil.IsZero() || !now.Before(attempt.LockedUntil) {
+		if !attempt.LockedUntil.IsZero() {
+			delete(l.attempts, key)
+		}
+		return false
+	}
+	return true
+}
+
+func (l *loginAttemptTracker) RecordFailure(key string, now time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	attempt := l.attempts[key]
+	if !attempt.LockedUntil.IsZero() {
+		if now.Before(attempt.LockedUntil) {
+			return true
+		}
+		attempt = loginAttempt{}
+	}
+
+	attempt.Count++
+	if attempt.Count >= l.limit {
+		attempt.LockedUntil = now.Add(l.lockout)
+	}
+	l.attempts[key] = attempt
+	return !attempt.LockedUntil.IsZero()
+}
+
+func (l *loginAttemptTracker) Reset(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.attempts, key)
+}
+
+func loginAttemptKey(ctx *gin.Context, username string) string {
+	return strings.ToLower(strings.TrimSpace(username)) + "|" + ctx.ClientIP()
+}
+
+func respondInvalidLogin(ctx *gin.Context) {
+	ctx.JSON(http.StatusUnauthorized, gin.H{
+		"error":  invalidLoginMessage,
+		"isTrue": false,
+	})
+}
+
+func respondTooManyLoginAttempts(ctx *gin.Context) {
+	ctx.JSON(http.StatusTooManyRequests, gin.H{
+		"error": "too many failed login attempts",
+	})
+}
+
 func (u *UserController) VerifyPassword(ctx *gin.Context) {
 
 	username := ctx.PostForm("username")
@@ -452,23 +546,25 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		})
 		return
 	}
+	attemptKey := loginAttemptKey(ctx, username)
+	now := time.Now()
+	if u.loginAttempts.IsLocked(attemptKey, now) {
+		respondTooManyLoginAttempts(ctx)
+		return
+	}
+
 	user, err := u.dao.SelectByUserName(username)
 	if errors.Is(err, sql.ErrNoRows) {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "username is not exist",
-		})
+		if u.loginAttempts.RecordFailure(attemptKey, now) {
+			respondTooManyLoginAttempts(ctx)
+			return
+		}
+		respondInvalidLogin(ctx)
 		return
 	} else if err != nil {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
-		})
-		return
-	}
-
-	if user.Status != model.UserStatusNormal {
-		ctx.JSON(http.StatusForbidden, gin.H{
-			"error": "user is disabled",
 		})
 		return
 	}
@@ -483,9 +579,17 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 	}
 
 	if !encode.CompareHashAndPassword(user.PasswordHash, password) {
-		ctx.JSON(http.StatusUnauthorized, gin.H{
-			"error":  "wrong password",
-			"isTrue": false,
+		if u.loginAttempts.RecordFailure(attemptKey, now) {
+			respondTooManyLoginAttempts(ctx)
+			return
+		}
+		respondInvalidLogin(ctx)
+		return
+	}
+
+	if user.Status != model.UserStatusNormal {
+		ctx.JSON(http.StatusForbidden, gin.H{
+			"error": "user is disabled",
 		})
 		return
 	}
@@ -498,6 +602,7 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		return
 	}
 
+	u.loginAttempts.Reset(attemptKey)
 	ctx.JSON(http.StatusOK, gin.H{
 		"user":   user,
 		"isTrue": true,
