@@ -290,7 +290,7 @@ func (i *ItemController) CalSum(ctx *gin.Context) {
 
 func (i *ItemController) RegisterAuthRouter(r *gin.RouterGroup) {
 	purchaser := middleware.Role(model.RoleAdmin, model.RolePurchaser)
-	manager := middleware.Role(model.RoleAdmin, model.RoleWarehouse, model.RoleAuditor)
+	manager := middleware.Role(model.RoleAdmin, model.RoleWarehouse)
 
 	r.POST("/items/selectAll", i.SelectAll)
 	r.GET("/items/selectById", i.SelectById)

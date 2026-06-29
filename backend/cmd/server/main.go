@@ -41,13 +41,25 @@ func main() {
 	log.Printf("Database connection established successfully")
 
 	jwtMgr := jwt.NewJwtManager(jwtSecret)
+	userDao := &dao.UserDao{DB: client.DB}
 
 	r := gin.Default()
 	api := r.Group("/api")
 	auth := api.Group("")
-	auth.Use(middleware.Auth(jwtMgr))
+	auth.Use(middleware.Auth(jwtMgr, func(userID int64) (*middleware.AuthUser, error) {
+		user, err := userDao.SelectById(int(userID))
+		if err != nil {
+			return nil, err
+		}
+		return &middleware.AuthUser{
+			ID:       user.Id,
+			Username: user.Username,
+			RoleID:   user.RoleId,
+			Status:   user.Status,
+		}, nil
+	}))
 
-	userController := controller.NewUserController(&dao.UserDao{DB: client.DB}, jwtMgr)
+	userController := controller.NewUserController(userDao, jwtMgr)
 	userController.RegisterRouter(api)
 	userController.RegisterAuthRouter(auth)
 
