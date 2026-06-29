@@ -151,6 +151,9 @@ func (c *ItemCategoriesController) Insert(ctx *gin.Context) {
 		})
 		return
 	}
+	if !c.validateParent(ctx, 0, parent) {
+		return
+	}
 
 	category := model.ItemCategories{Name: req.Name, Description: normalizeItemCategoryDescription(req.Description), Parent: parent}
 	insert, err := c.dao.Insert(&category)
@@ -214,7 +217,12 @@ func (c *ItemCategoriesController) UpdateParentById(ctx *gin.Context) {
 		return
 	}
 
-	category.Parent = normalizeItemCategoryParent(req.Parent)
+	parent := normalizeItemCategoryParent(req.Parent)
+	if !c.validateParent(ctx, category.Id, parent) {
+		return
+	}
+
+	category.Parent = parent
 	c.update(ctx, category)
 }
 
@@ -244,6 +252,47 @@ func normalizeItemCategoryDescription(description *string) *string {
 	}
 
 	return description
+}
+
+func (c *ItemCategoriesController) validateParent(ctx *gin.Context, currentId int64, parent *int64) bool {
+	if parent == nil {
+		return true
+	}
+	visited := make(map[int64]struct{})
+	if currentId > 0 {
+		visited[currentId] = struct{}{}
+	}
+
+	parentId := *parent
+	for parentId != 0 {
+		if _, ok := visited[parentId]; ok {
+			ctx.JSON(http.StatusBadRequest, gin.H{
+				"error": "parent creates cycle",
+			})
+			return false
+		}
+		visited[parentId] = struct{}{}
+
+		parentCategory, err := c.dao.SelectById(parentId)
+		if errors.Is(err, sql.ErrNoRows) {
+			ctx.JSON(http.StatusBadRequest, gin.H{
+				"error": "parent is not exist",
+			})
+			return false
+		} else if err != nil {
+			log.Println(err)
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"error": err.Error(),
+			})
+			return false
+		}
+		if parentCategory.Parent == nil {
+			return true
+		}
+		parentId = *parentCategory.Parent
+	}
+
+	return true
 }
 
 func (c *ItemCategoriesController) itemCategoryByQueryId(ctx *gin.Context) (*model.ItemCategories, bool) {

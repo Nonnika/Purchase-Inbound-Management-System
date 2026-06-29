@@ -39,8 +39,8 @@ services:
       timeout: 5s
       retries: 30
       start_period: 20s
-    ports:
-      - "${DB_PUBLISH_PORT:-10086}:3306"   # 主机端口:容器端口，留空可改为不发布
+    expose:
+      - "3306"
     networks:
       - pims-net
 
@@ -67,8 +67,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     networks:
       - pims-net
 

@@ -546,6 +546,15 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		})
 		return
 	}
+	password := ctx.PostForm("password")
+	if password == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error":  "password is empty",
+			"isTrue": false,
+		})
+		return
+	}
+
 	attemptKey := loginAttemptKey(ctx, username)
 	now := time.Now()
 	if u.loginAttempts.IsLocked(attemptKey, now) {
@@ -565,15 +574,6 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
-		})
-		return
-	}
-
-	password := ctx.PostForm("password")
-	if password == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error":  "password is empty",
-			"isTrue": false,
 		})
 		return
 	}
@@ -609,6 +609,13 @@ func (u *UserController) VerifyPassword(ctx *gin.Context) {
 		"token":  token,
 	})
 
+}
+
+func respondInvalidCredentials(ctx *gin.Context) {
+	ctx.JSON(http.StatusUnauthorized, gin.H{
+		"error":  "invalid username or password",
+		"isTrue": false,
+	})
 }
 
 func (u *UserController) BlockById(ctx *gin.Context) {

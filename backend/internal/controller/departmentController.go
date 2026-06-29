@@ -151,6 +151,9 @@ func (d *DepartmentController) Insert(ctx *gin.Context) {
 		})
 		return
 	}
+	if !d.validateParent(ctx, 0, parent) {
+		return
+	}
 
 	department := model.Department{Name: req.Name, Description: normalizeDepartmentDescription(req.Description), Parent: parent}
 	insert, err := d.dao.Insert(&department)
@@ -214,7 +217,12 @@ func (d *DepartmentController) UpdateParentById(ctx *gin.Context) {
 		return
 	}
 
-	department.Parent = normalizeDepartmentParent(req.Parent)
+	parent := normalizeDepartmentParent(req.Parent)
+	if !d.validateParent(ctx, department.Id, parent) {
+		return
+	}
+
+	department.Parent = parent
 	d.update(ctx, department)
 }
 
@@ -244,6 +252,47 @@ func normalizeDepartmentDescription(description *string) *string {
 	}
 
 	return description
+}
+
+func (d *DepartmentController) validateParent(ctx *gin.Context, currentId int64, parent *int64) bool {
+	if parent == nil {
+		return true
+	}
+	visited := make(map[int64]struct{})
+	if currentId > 0 {
+		visited[currentId] = struct{}{}
+	}
+
+	parentId := *parent
+	for parentId != 0 {
+		if _, ok := visited[parentId]; ok {
+			ctx.JSON(http.StatusBadRequest, gin.H{
+				"error": "parent creates cycle",
+			})
+			return false
+		}
+		visited[parentId] = struct{}{}
+
+		parentDepartment, err := d.dao.SelectById(parentId)
+		if errors.Is(err, sql.ErrNoRows) {
+			ctx.JSON(http.StatusBadRequest, gin.H{
+				"error": "parent is not exist",
+			})
+			return false
+		} else if err != nil {
+			log.Println(err)
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"error": err.Error(),
+			})
+			return false
+		}
+		if parentDepartment.Parent == nil {
+			return true
+		}
+		parentId = *parentDepartment.Parent
+	}
+
+	return true
 }
 
 func (d *DepartmentController) departmentByQueryId(ctx *gin.Context) (*model.Department, bool) {

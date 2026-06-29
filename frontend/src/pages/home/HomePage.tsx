@@ -13,7 +13,7 @@ import type {
 } from '@/types/overview'
 import type { Item } from '@/types/item'
 import type { Warehouse } from '@/types/warehouse'
-import type { Role } from '@/types/role'
+import { ROLE_ID, type Role } from '@/types/role'
 import { Button } from '@/components/ui/Button/Button'
 import { Tag } from '@/components/ui/Tag/Tag'
 import { ErrorBanner } from '@/components/ui/ErrorBanner/ErrorBanner'
@@ -36,6 +36,8 @@ type LoadState = 'loading' | 'error' | 'ready'
 export function HomePage() {
   const user = getCurrentUser()
   const roleId = user?.role_id ?? 0
+  const canViewOverview =
+    roleId === ROLE_ID.ADMIN || roleId === ROLE_ID.AUDITOR || roleId === ROLE_ID.WAREHOUSE
 
   const [summary, setSummary] = useState<OverviewSummary | null>(null)
   const [roles, setRoles] = useState<Role[]>([])
@@ -60,6 +62,18 @@ export function HomePage() {
     setCargoByWh(null)
     setCargoByWhError(null)
     setItems(null)
+    if (!canViewOverview) {
+      setSummary(null)
+      setRoles([])
+      setCargoValue(null)
+      setTrend(undefined)
+      setCargoByWh(undefined)
+      setItems(null)
+      setWarehouses([])
+      setUpdatedAt(new Date())
+      setState('ready')
+      return
+    }
     try {
       // summary 致命：决定整页能否渲染。其余并发 .catch 降级。
       const [s, rs, cv, tr, cw, its, whs] = await Promise.all([
@@ -94,7 +108,7 @@ export function HomePage() {
       setError(toApiError(err))
       setState('error')
     }
-  }, [])
+  }, [canViewOverview])
 
   useEffect(() => {
     void load()
@@ -160,6 +174,8 @@ export function HomePage() {
           />
         ) : state === 'loading' ? (
           <p className={styles.muted}>正在加载控制台数据…</p>
+        ) : state === 'ready' && !canViewOverview ? (
+          <ShortcutGrid roleId={roleId} />
         ) : summary ? (
           <>
             <KpiStrip

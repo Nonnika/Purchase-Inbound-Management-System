@@ -7,6 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nonnika/pims/internal/database/dao"
+	"github.com/nonnika/pims/internal/database/model"
+	"github.com/nonnika/pims/internal/middleware"
 )
 
 const (
@@ -81,7 +83,9 @@ func (o *OverviewController) CargoByWarehouse(ctx *gin.Context) {
 }
 
 func (o *OverviewController) RegisterAuthRouter(r *gin.RouterGroup) {
-	r.GET("/overview/summary", o.Summary)
-	r.GET("/overview/orderTrend", o.OrderTrend)
-	r.GET("/overview/cargoByWarehouse", o.CargoByWarehouse)
+	viewer := middleware.Role(model.RoleAdmin, model.RoleAuditor, model.RoleWarehouse)
+
+	r.GET("/overview/summary", viewer, o.Summary)
+	r.GET("/overview/orderTrend", viewer, o.OrderTrend)
+	r.GET("/overview/cargoByWarehouse", viewer, o.CargoByWarehouse)
 }
